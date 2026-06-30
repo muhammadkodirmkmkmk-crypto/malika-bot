@@ -10,7 +10,7 @@ ADMIN_CHAT_ID = int(os.environ.get("ADMIN_CHAT_ID", "0"))
 OWNER_CHAT_ID = int(os.environ.get("OWNER_CHAT_ID", "7871931220"))
 
 # Модель Claude для генерации ответов Малики
-CLAUDE_MODEL = os.environ.get("CLAUDE_MODEL", "claude-sonnet-4-6")
+CLAUDE_MODEL = os.environ.get("CLAUDE_MODEL", "claude-haiku-4-5-20251001")
 
 # Сколько последних сообщений диалога хранить как контекст
 HISTORY_LIMIT = int(os.environ.get("HISTORY_LIMIT", "20"))
