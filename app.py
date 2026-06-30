@@ -2,13 +2,11 @@ import logging
 
 from flask import Flask, request, jsonify
 
-from config import ADMIN_CHAT_ID, OWNER_CHAT_ID
+from config import OWNER_CHAT_ID
 import storage
 import telegram_client
 from claude_client import ask_malika
 from utils import (
-    detect_hot_lead,
-    extract_phone,
     guess_rate,
     parse_amount_and_months,
     annuity_payment,
@@ -28,40 +26,24 @@ app = Flask(__name__)
 DEFAULT_LANG = "uz_latin"  # если язык ещё не определён однозначно
 
 
-def notify_admin_hot_lead(chat_id: int, user, text: str) -> None:
-    if not ADMIN_CHAT_ID or storage.was_hot_lead_reported(chat_id):
-        return
-    phone = extract_phone(text)
-    name = " ".join(filter(None, [user.get("first_name"), user.get("last_name")])) or "—"
-    username = f"@{user['username']}" if user.get("username") else "—"
-    msg = (
-        "🔥 Горячий лид (Малика)\n"
-        f"Имя: {name}\n"
-        f"Username: {username}\n"
-        f"Телефон в сообщении: {phone or '—'}\n"
-        f"Chat ID: {chat_id}\n"
-        f"Сообщение: {text}"
-    )
-    telegram_client.send_message(ADMIN_CHAT_ID, msg)
-    storage.mark_hot_lead_reported(chat_id)
-
-
-def notify_owner_new_client(chat_id: int, user, contact_text: str) -> None:
+def send_lead_to_owner(chat_id: int, user, contact_text: str) -> None:
+    """Единое аккуратное уведомление о новом клиенте на узбекском языке —
+    отправляется один раз на OWNER_CHAT_ID, без дублей."""
     if not OWNER_CHAT_ID or storage.was_new_client_reported(chat_id):
         return
     username = f"@{user['username']}" if user.get("username") else "—"
     amount_months = storage.get_last_amount_months(chat_id)
     if amount_months:
         amount, months = amount_months
-        credit_line = f"Запрос: {format_sum(amount)} сум на {months} мес."
+        credit_line = f"{format_sum(amount)} so'm, {months} oy"
     else:
-        credit_line = "Запрос: —"
+        credit_line = "—"
     msg = (
-        "🆕 Новый клиент (Малика)\n"
-        f"Контактные данные от клиента: {contact_text}\n"
-        f"{credit_line}\n"
-        f"Telegram username: {username}\n"
-        f"Chat ID: {chat_id}"
+        "🆕 Yangi mijoz — Malika boti\n\n"
+        f"👤 Mijoz yuborgan ma'lumot:\n{contact_text}\n\n"
+        f"💰 So'rov: {credit_line}\n"
+        f"🔗 Telegram: {username}\n"
+        f"🆔 Chat ID: {chat_id}"
     )
     telegram_client.send_message(OWNER_CHAT_ID, msg)
     storage.mark_new_client_reported(chat_id)
@@ -99,12 +81,8 @@ def webhook():
 
     # Если ранее попросили контакты — проверяем, похоже ли это сообщение на них
     if storage.is_awaiting_contact(chat_id) and looks_like_contact_info(text):
-        notify_owner_new_client(chat_id, user, text)
+        send_lead_to_owner(chat_id, user, text)
         storage.clear_awaiting_contact(chat_id)
-
-    # Детект горячего лида — пересылаем администратору, диалог не прерываем
-    if detect_hot_lead(text):
-        notify_admin_hot_lead(chat_id, user, text)
 
     storage.append_message(chat_id, "user", text)
     current_lang = update_language_lock(chat_id, text)
