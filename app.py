@@ -90,6 +90,10 @@ def webhook():
 
     storage.append_message(chat_id, "user", text)
     current_lang = update_language_lock(chat_id, text)
+    log.info(
+        "chat=%s text=%r detected_lock=%s stored_lock=%s current_lang=%s",
+        chat_id, text, detect_language_lock(text), storage.get_language_lock(chat_id), current_lang,
+    )
 
     # Тип кредита (ставка) может быть назван в любом сообщении — запоминаем
     # на весь диалог, чтобы не потерять его, когда сумма придёт позже отдельно
@@ -116,6 +120,10 @@ def webhook():
     if amount and months:
         rate = rate or storage.get_credit_rate(chat_id) or 0.15
         payment = annuity_payment(amount, rate, months)
+        log.info(
+            "PAYMENT BRANCH chat=%s amount=%s months=%s rate=%s lang_used=%s",
+            chat_id, amount, months, rate, current_lang,
+        )
         reply = build_payment_message(amount, months, payment, current_lang)
         storage.set_awaiting_contact(chat_id, amount, months)
         telegram_client.send_typing(chat_id)
