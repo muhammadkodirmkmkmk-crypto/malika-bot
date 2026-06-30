@@ -94,3 +94,24 @@ def annuity_payment(amount: float, annual_rate: float, months: int) -> float:
         return amount / months
     factor = (1 + r) ** months
     return amount * r * factor / (factor - 1)
+
+
+def looks_like_contact_info(text: str) -> bool:
+    """Грубая проверка: похоже ли сообщение на 'Имя Фамилия, город',
+    а не на отдельное слово/цифру/смайлик."""
+    cleaned = re.sub(r"[^\w\s]", " ", text, flags=re.UNICODE).strip()
+    words = [w for w in cleaned.split() if len(w) > 1]
+    if len(words) < 2:
+        return False
+    # хотя бы половина слов — буквенные (не цифры)
+    alpha_words = [w for w in words if any(ch.isalpha() for ch in w)]
+    return len(alpha_words) >= 2
+
+
+SYSTEM_NOTE_LEAK_RE = re.compile(r"\[SYSTEM NOTE\][^\n]*\n?", re.IGNORECASE)
+
+
+def strip_system_note_leak(text: str) -> str:
+    """Страховка: если модель случайно процитировала служебную подсказку,
+    вырезаем эту строку перед отправкой клиенту."""
+    return SYSTEM_NOTE_LEAK_RE.sub("", text).strip()

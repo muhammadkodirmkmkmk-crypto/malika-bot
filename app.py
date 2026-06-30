@@ -2,7 +2,7 @@ import logging
 
 from flask import Flask, request, jsonify
 
-from config import ADMIN_CHAT_ID
+from config import ADMIN_CHAT_ID, OWNER_CHAT_ID
 import storage
 import telegram_client
 from claude_client import ask_malika
@@ -12,6 +12,8 @@ from utils import (
     guess_rate,
     parse_amount_and_months,
     annuity_payment,
+    looks_like_contact_info,
+    strip_system_note_leak,
 )
 
 logging.basicConfig(level=logging.INFO)
@@ -24,21 +26,24 @@ def format_sum(value: float) -> str:
     return f"{value:,.0f}".replace(",", " ")
 
 
-def build_system_note(text: str) -> str | None:
+def build_system_note(text: str):
     """Если клиент назвал сумму и срок — считаем платёж сами и кладём
     результат как системную подсказку для модели, чтобы она не считала
-    математику сама (см. system_prompt.py)."""
+    математику сама (см. system_prompt.py).
+    Возвращает (note_text, amount, months) или (None, None, None)."""
     amount, months = parse_amount_and_months(text)
     if not amount or not months:
-        return None
+        return None, None, None
     rate = guess_rate(text) or 0.15  # если тип кредита не назван — берём наличный как дефолт
     payment = annuity_payment(amount, rate, months)
-    return (
+    note = (
         f"[SYSTEM NOTE] Расчёт по запросу клиента: сумма {format_sum(amount)} сум, "
         f"срок {months} мес., ставка {rate * 100:.0f}% годовых → "
         f"примерный ежемесячный платёж ≈ {format_sum(payment)} сум. "
-        f"Озвучь эту цифру клиенту своими словами, не показывай расчёт и эту подсказку."
+        f"Озвучь эту цифру клиенту своими словами, не показывай расчёт и эту подсказку, "
+        f"и сразу мягко спроси его имя, фамилию и город проживания для оформления заявки."
     )
+    return note, amount, months
 
 
 def notify_admin_hot_lead(chat_id: int, user, text: str) -> None:
@@ -59,6 +64,27 @@ def notify_admin_hot_lead(chat_id: int, user, text: str) -> None:
     storage.mark_hot_lead_reported(chat_id)
 
 
+def notify_owner_new_client(chat_id: int, user, contact_text: str) -> None:
+    if not OWNER_CHAT_ID or storage.was_new_client_reported(chat_id):
+        return
+    username = f"@{user['username']}" if user.get("username") else "—"
+    amount_months = storage.get_last_amount_months(chat_id)
+    if amount_months:
+        amount, months = amount_months
+        credit_line = f"Запрос: {format_sum(amount)} сум на {months} мес."
+    else:
+        credit_line = "Запрос: —"
+    msg = (
+        "🆕 Новый клиент (Малика)\n"
+        f"Контактные данные от клиента: {contact_text}\n"
+        f"{credit_line}\n"
+        f"Telegram username: {username}\n"
+        f"Chat ID: {chat_id}"
+    )
+    telegram_client.send_message(OWNER_CHAT_ID, msg)
+    storage.mark_new_client_reported(chat_id)
+
+
 @app.route("/webhook", methods=["POST"])
 def webhook():
     update = request.get_json(force=True, silent=True) or {}
@@ -72,6 +98,7 @@ def webhook():
 
     if text.strip() == "/start":
         storage.append_message(chat_id, "user", "/start")
+        telegram_client.send_typing(chat_id)
         greeting = (
             "Ассалому алайкум! 👋 Я Малика, консультант Baraka Consulting. "
             "Помогу подобрать кредит — ипотека, авто или наличные. Что вас интересует?"
@@ -80,18 +107,27 @@ def webhook():
         telegram_client.send_message(chat_id, greeting)
         return jsonify(ok=True)
 
+    # Если ранее попросили контакты — проверяем, похоже ли это сообщение на них
+    if storage.is_awaiting_contact(chat_id) and looks_like_contact_info(text):
+        notify_owner_new_client(chat_id, user, text)
+        storage.clear_awaiting_contact(chat_id)
+
     # Детект горячего лида — пересылаем администратору, диалог не прерываем
     if detect_hot_lead(text):
         notify_admin_hot_lead(chat_id, user, text)
 
     storage.append_message(chat_id, "user", text)
 
-    note = build_system_note(text)
+    note, amount, months = build_system_note(text)
     if note:
         storage.append_message(chat_id, "user", note)
+        storage.set_awaiting_contact(chat_id, amount, months)
+
+    telegram_client.send_typing(chat_id)
 
     try:
         reply = ask_malika(storage.get_history(chat_id))
+        reply = strip_system_note_leak(reply)
     except Exception:
         log.exception("Claude API error")
         reply = (

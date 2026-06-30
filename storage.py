@@ -10,6 +10,9 @@ from config import HISTORY_LIMIT
 
 _history: dict[int, list[dict]] = defaultdict(list)
 _hot_lead_sent: set[int] = set()
+_awaiting_contact: set[int] = set()
+_new_client_sent: set[int] = set()
+_last_amount_months: dict[int, tuple] = {}
 
 
 def get_history(chat_id: int) -> list[dict]:
@@ -28,3 +31,28 @@ def was_hot_lead_reported(chat_id: int) -> bool:
 
 def mark_hot_lead_reported(chat_id: int) -> None:
     _hot_lead_sent.add(chat_id)
+
+
+def set_awaiting_contact(chat_id: int, amount: float, months: int) -> None:
+    _awaiting_contact.add(chat_id)
+    _last_amount_months[chat_id] = (amount, months)
+
+
+def is_awaiting_contact(chat_id: int) -> bool:
+    return chat_id in _awaiting_contact
+
+
+def clear_awaiting_contact(chat_id: int) -> None:
+    _awaiting_contact.discard(chat_id)
+
+
+def get_last_amount_months(chat_id: int):
+    return _last_amount_months.get(chat_id)
+
+
+def was_new_client_reported(chat_id: int) -> bool:
+    return chat_id in _new_client_sent
+
+
+def mark_new_client_reported(chat_id: int) -> None:
+    _new_client_sent.add(chat_id)

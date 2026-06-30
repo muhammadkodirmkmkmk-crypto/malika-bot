@@ -6,6 +6,9 @@ ANTHROPIC_API_KEY = os.environ["ANTHROPIC_API_KEY"]
 # Кому пересылать "горячих" лидов (телефон/имя/готовность оформлять)
 ADMIN_CHAT_ID = int(os.environ.get("ADMIN_CHAT_ID", "0"))
 
+# Кому пересылать оформленных "новых клиентов" (имя/город после расчёта платежа)
+OWNER_CHAT_ID = int(os.environ.get("OWNER_CHAT_ID", "7871931220"))
+
 # Модель Claude для генерации ответов Малики
 CLAUDE_MODEL = os.environ.get("CLAUDE_MODEL", "claude-sonnet-4-6")
 
