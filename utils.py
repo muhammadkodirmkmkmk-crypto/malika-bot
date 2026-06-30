@@ -137,6 +137,33 @@ def annuity_payment(amount: float, annual_rate: float, months: int) -> float:
     return amount * r * factor / (factor - 1)
 
 
+def format_sum(value: float) -> str:
+    return f"{value:,.0f}".replace(",", " ")
+
+
+def build_payment_message(amount: float, months: int, payment: float, lang: str) -> str:
+    """Готовый текст про ежемесячный платёж + просьба контактов,
+    полностью сформированный кодом (без участия модели) на нужном языке."""
+    a, m, p = format_sum(amount), months, format_sum(payment)
+    if lang == "uz_latin":
+        return (
+            f"Ajoyib! {a} so'm summaga {m} oy muddatga oylik to'lov taxminan {p} so'm bo'ladi 😊\n\n"
+            f"Arizani tezroq ko'rib chiqilishi uchun ismingiz, familiyangiz va qaysi tuman "
+            f"yoki shahardan ekanligingizni ayta olasizmi?"
+        )
+    if lang == "uz_cyrillic":
+        return (
+            f"Аъло! {a} сўм суммага {m} ой муддатга ойлик тўлов тахминан {p} сўм бўлади 😊\n\n"
+            f"Аризани тезроқ кўриб чиқилиши учун исмингиз, фамилиянгиз ва қайси туман "
+            f"ёки шаҳардан эканлигингизни айта оласизми?"
+        )
+    return (
+        f"Супер! По {a} сум на {m} мес. ежемесячный платёж составит примерно {p} сум 😊\n\n"
+        f"Чтобы заявку рассмотрели быстрее, подскажите, пожалуйста, ваше имя, фамилию "
+        f"и город/район проживания?"
+    )
+
+
 def looks_like_contact_info(text: str) -> bool:
     """Грубая проверка: похоже ли сообщение на 'Имя Фамилия, город',
     а не на отдельное слово/цифру/смайлик."""

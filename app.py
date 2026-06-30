@@ -13,10 +13,11 @@ from utils import (
     parse_amount_and_months,
     annuity_payment,
     looks_like_contact_info,
-    strip_system_note_leak,
     strip_markdown_asterisks,
     detect_language_lock,
     LANGUAGE_LOCK_LABELS,
+    build_payment_message,
+    format_sum,
 )
 
 logging.basicConfig(level=logging.INFO)
@@ -24,29 +25,7 @@ log = logging.getLogger("malika-bot")
 
 app = Flask(__name__)
 
-
-def format_sum(value: float) -> str:
-    return f"{value:,.0f}".replace(",", " ")
-
-
-def build_system_note(text: str):
-    """Если клиент назвал сумму и срок — считаем платёж сами и кладём
-    результат как системную подсказку для модели, чтобы она не считала
-    математику сама (см. system_prompt.py).
-    Возвращает (note_text, amount, months) или (None, None, None)."""
-    amount, months = parse_amount_and_months(text)
-    if not amount or not months:
-        return None, None, None
-    rate = guess_rate(text) or 0.15  # если тип кредита не назван — берём наличный как дефолт
-    payment = annuity_payment(amount, rate, months)
-    note = (
-        f"[SYSTEM NOTE] Расчёт по запросу клиента: сумма {format_sum(amount)} сум, "
-        f"срок {months} мес., ставка {rate * 100:.0f}% годовых → "
-        f"примерный ежемесячный платёж ≈ {format_sum(payment)} сум. "
-        f"Озвучь эту цифру клиенту своими словами, не показывай расчёт и эту подсказку, "
-        f"и сразу мягко спроси его имя, фамилию и город проживания для оформления заявки."
-    )
-    return note, amount, months
+DEFAULT_LANG = "uz_latin"  # если язык ещё не определён однозначно
 
 
 def notify_admin_hot_lead(chat_id: int, user, text: str) -> None:
@@ -88,6 +67,14 @@ def notify_owner_new_client(chat_id: int, user, contact_text: str) -> None:
     storage.mark_new_client_reported(chat_id)
 
 
+def update_language_lock(chat_id: int, text: str) -> str:
+    """Определяет/фиксирует язык диалога, возвращает текущий действующий язык."""
+    lock = detect_language_lock(text)
+    if lock:
+        storage.set_language_lock_if_absent(chat_id, lock)
+    return storage.get_language_lock(chat_id) or DEFAULT_LANG
+
+
 @app.route("/webhook", methods=["POST"])
 def webhook():
     update = request.get_json(force=True, silent=True) or {}
@@ -120,29 +107,27 @@ def webhook():
         notify_admin_hot_lead(chat_id, user, text)
 
     storage.append_message(chat_id, "user", text)
+    current_lang = update_language_lock(chat_id, text)
 
-    lock = detect_language_lock(text)
-    if lock:
-        storage.set_language_lock_if_absent(chat_id, lock)
-    current_lock = storage.get_language_lock(chat_id)
-    if current_lock:
-        storage.append_message(
-            chat_id,
-            "user",
-            f"[SYSTEM NOTE] Язык/алфавит этого диалога зафиксирован: "
-            f"{LANGUAGE_LOCK_LABELS[current_lock]}. Отвечай только так.",
-        )
-
-    note, amount, months = build_system_note(text)
-    if note:
-        storage.append_message(chat_id, "user", note)
+    # Если клиент назвал сумму и срок — платёж считает и пишет код,
+    # модель в этом шаге вообще не участвует (исключает любые "слитые" расчёты)
+    amount, months = parse_amount_and_months(text)
+    if amount and months:
+        rate = guess_rate(text) or 0.15
+        payment = annuity_payment(amount, rate, months)
+        reply = build_payment_message(amount, months, payment, current_lang)
         storage.set_awaiting_contact(chat_id, amount, months)
+        telegram_client.send_typing(chat_id)
+        storage.append_message(chat_id, "assistant", reply)
+        telegram_client.send_message(chat_id, reply)
+        return jsonify(ok=True)
 
     telegram_client.send_typing(chat_id)
 
+    dynamic_addendum = f"Язык/алфавит этого диалога зафиксирован: {LANGUAGE_LOCK_LABELS[current_lang]}. Отвечай только так."
+
     try:
-        reply = ask_malika(storage.get_history(chat_id))
-        reply = strip_system_note_leak(reply)
+        reply = ask_malika(storage.get_history(chat_id), dynamic_addendum=dynamic_addendum)
         reply = strip_markdown_asterisks(reply)
     except Exception:
         log.exception("Claude API error")

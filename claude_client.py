@@ -5,10 +5,14 @@ from system_prompt import SYSTEM_PROMPT
 ANTHROPIC_URL = "https://api.anthropic.com/v1/messages"
 
 
-def ask_malika(history: list[dict]) -> str:
-    """history — список {"role": "user"|"assistant", "content": str},
-    может включать служебные сообщения role="user" с пометкой [SYSTEM NOTE]
-    (например, посчитанный системой ежемесячный платёж)."""
+def ask_malika(history: list[dict], dynamic_addendum: str | None = None) -> str:
+    """history — список {"role": "user"|"assistant", "content": str}.
+    dynamic_addendum — короткая инструкция (например, фиксация языка),
+    добавляется только к системному промпту этого запроса и никогда
+    не попадает в историю диалога, чтобы модель не могла её процитировать."""
+    system_text = SYSTEM_PROMPT
+    if dynamic_addendum:
+        system_text = f"{SYSTEM_PROMPT}\n\n[Текущая инструкция для этого ответа]\n{dynamic_addendum}"
     resp = requests.post(
         ANTHROPIC_URL,
         headers={
@@ -19,7 +23,7 @@ def ask_malika(history: list[dict]) -> str:
         json={
             "model": CLAUDE_MODEL,
             "max_tokens": 500,
-            "system": SYSTEM_PROMPT,
+            "system": system_text,
             "messages": history,
         },
         timeout=30,
