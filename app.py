@@ -14,6 +14,7 @@ from utils import (
     annuity_payment,
     looks_like_contact_info,
     strip_system_note_leak,
+    strip_markdown_asterisks,
     detect_language_lock,
     LANGUAGE_LOCK_LABELS,
 )
@@ -142,6 +143,7 @@ def webhook():
     try:
         reply = ask_malika(storage.get_history(chat_id))
         reply = strip_system_note_leak(reply)
+        reply = strip_markdown_asterisks(reply)
     except Exception:
         log.exception("Claude API error")
         reply = (

@@ -43,6 +43,12 @@ UZBEK_CYRILLIC_WORDS = [
 ]
 
 
+RUSSIAN_MARKERS = [
+    "здравствуйте", "привет", "хочу", "нужен", "нужно", "можно", "пожалуйста",
+    "спасибо", "сколько", "какой", "какая", "какие", "это", "вы", "меня",
+]
+
+
 def detect_language_lock(text: str) -> str | None:
     """Определяет язык+алфавит по сообщению клиента для фиксации на весь диалог.
     Возвращает 'uz_cyrillic' | 'uz_latin' | 'ru' | None (если непонятно)."""
@@ -55,12 +61,10 @@ def detect_language_lock(text: str) -> str | None:
         return "uz_cyrillic"
     if has_uz_latin_marker:
         return "uz_latin"
-    words = [w for w in re.findall(r"[a-zа-яё']+", low) if len(w) > 1]
-    # короткие/неоднозначные приветствия (салом, ассалому алайкум и т.п.)
-    # общие для рус. и узб. кириллицы — не фиксируем язык на одном таком слове
-    if len(words) < 2:
-        return None
-    if re.search(r"[а-яё]", low):
+    # для русского требуем явный маркер, а не просто "есть кириллица" —
+    # узбекские предложения тоже пишутся кириллицей и могут не попасть
+    # в список UZBEK_CYRILLIC_WORDS, поэтому общая кириллица — недостаточный сигнал
+    if any(m in low for m in RUSSIAN_MARKERS):
         return "ru"
     return None
 
@@ -152,3 +156,11 @@ def strip_system_note_leak(text: str) -> str:
     """Страховка: если модель случайно процитировала служебную подсказку,
     вырезаем эту строку перед отправкой клиенту."""
     return SYSTEM_NOTE_LEAK_RE.sub("", text).strip()
+
+
+def strip_markdown_asterisks(text: str) -> str:
+    """Страховка: убирает **bold**/*italic* разметку, которую Telegram
+    не рендерит без parse_mode — иначе клиент видит звёздочки как есть."""
+    text = re.sub(r"\*\*(.+?)\*\*", r"\1", text)
+    text = re.sub(r"(?<!\w)\*(.+?)\*(?!\w)", r"\1", text)
+    return text
