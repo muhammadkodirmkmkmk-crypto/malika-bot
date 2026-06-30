@@ -14,6 +14,8 @@ _awaiting_contact: set[int] = set()
 _new_client_sent: set[int] = set()
 _last_amount_months: dict[int, tuple] = {}
 _language_lock: dict[int, str] = {}
+_pending_amount: dict[int, tuple] = {}  # (amount, rate_or_None)
+_credit_rate: dict[int, float] = {}
 
 
 def get_history(chat_id: int) -> list[dict]:
@@ -66,3 +68,24 @@ def get_language_lock(chat_id: int) -> str | None:
 def set_language_lock_if_absent(chat_id: int, lock: str) -> None:
     if chat_id not in _language_lock:
         _language_lock[chat_id] = lock
+
+
+def set_pending_amount(chat_id: int, amount: float, rate: float | None) -> None:
+    _pending_amount[chat_id] = (amount, rate)
+
+
+def get_pending_amount(chat_id: int):
+    return _pending_amount.get(chat_id)
+
+
+def clear_pending_amount(chat_id: int) -> None:
+    _pending_amount.pop(chat_id, None)
+
+
+def set_credit_rate_if_absent(chat_id: int, rate: float) -> None:
+    if chat_id not in _credit_rate:
+        _credit_rate[chat_id] = rate
+
+
+def get_credit_rate(chat_id: int) -> float | None:
+    return _credit_rate.get(chat_id)

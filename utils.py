@@ -16,9 +16,12 @@ RATES = {
     "ипотечный": 0.08,
     "жиль": 0.08,
     "uy": 0.08,
+    "ipoteka": 0.08,
     "автокредит": 0.12,
     "авто": 0.12,
     "mashina": 0.12,
+    "мошина": 0.12,
+    "машина": 0.12,
     "avtokredit": 0.12,
     "наличны": 0.15,
     "naqd": 0.15,
@@ -108,30 +111,50 @@ def guess_rate(text: str) -> float | None:
     return None
 
 
-def parse_amount_and_months(text: str):
-    """Очень грубый парсер суммы (в сумах) и срока (в месяцах) из текста.
-    Возвращает (amount, months) или (None, None), если не нашли оба значения.
-    """
+def parse_amount(text: str) -> float | None:
+    """Парсер суммы (в сумах) из текста."""
     low = text.lower().replace(" ", "")
-
-    amount = None
     amount_match = re.search(r"(\d{2,}(?:[.,]\d+)?)\s*(млн|million|mln)", text.lower())
     if amount_match:
         num = float(amount_match.group(1).replace(",", "."))
-        amount = num * 1_000_000
-    else:
-        plain = re.search(r"\b(\d{7,})\b", low)
-        if plain:
-            amount = float(plain.group(1))
+        return num * 1_000_000
+    plain = re.search(r"\b(\d{7,})\b", low)
+    if plain:
+        return float(plain.group(1))
+    return None
 
-    months = None
-    months_match = re.search(r"(\d{1,3})\s*(месяц|мес|oy)", text.lower())
+
+def parse_months(text: str) -> int | None:
+    """Парсер срока (в месяцах) из текста — требует явную единицу измерения
+    (месяц/мес/oy/ой или год/лет/yil/йил), без неё не угадывает."""
+    low = text.lower()
+    months_match = re.search(r"(\d{1,3})\s*(месяц|мес|oy|ой)", low)
     if months_match:
-        months = int(months_match.group(1))
-    else:
-        years_match = re.search(r"(\d{1,2})\s*(год|лет|yil)", text.lower())
-        if years_match:
-            months = int(years_match.group(1)) * 12
+        return int(months_match.group(1))
+    years_match = re.search(r"(\d{1,2})\s*(год|лет|yil|йил)", low)
+    if years_match:
+        return int(years_match.group(1)) * 12
+    return None
+
+
+def parse_bare_years_answer(text: str) -> int | None:
+    """Если клиент ответил голым числом (например просто '5') на вопрос
+    'на сколько лет?' — трактуем как годы. Используется только когда
+    в коде уже точно знаем, что ждём именно срок (см. app.py)."""
+    stripped = text.strip()
+    if re.fullmatch(r"\d{1,2}", stripped):
+        years = int(stripped)
+        if 1 <= years <= 30:
+            return years * 12
+    return None
+
+
+def parse_amount_and_months(text: str):
+    """Парсер суммы и срока, если оба упомянуты в ОДНОМ сообщении.
+    Возвращает (amount, months) или (None, None), если не нашли оба значения.
+    """
+    amount = parse_amount(text)
+    months = parse_months(text)
 
     return amount, months
 

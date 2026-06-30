@@ -9,6 +9,9 @@ from claude_client import ask_malika
 from utils import (
     guess_rate,
     parse_amount_and_months,
+    parse_amount,
+    parse_months,
+    parse_bare_years_answer,
     annuity_payment,
     looks_like_contact_info,
     strip_markdown_asterisks,
@@ -88,11 +91,30 @@ def webhook():
     storage.append_message(chat_id, "user", text)
     current_lang = update_language_lock(chat_id, text)
 
+    # Тип кредита (ставка) может быть назван в любом сообщении — запоминаем
+    # на весь диалог, чтобы не потерять его, когда сумма придёт позже отдельно
+    rate_from_text = guess_rate(text)
+    if rate_from_text:
+        storage.set_credit_rate_if_absent(chat_id, rate_from_text)
+
     # Если клиент назвал сумму и срок — платёж считает и пишет код,
     # модель в этом шаге вообще не участвует (исключает любые "слитые" расчёты)
     amount, months = parse_amount_and_months(text)
+    rate = rate_from_text if (amount and months) else None
+    if not (amount and months):
+        # сумма и срок могли прийти в РАЗНЫХ сообщениях (например бот спросил
+        # "на сколько лет?", а клиент ответил просто "5") — связываем их
+        amt_only = parse_amount(text)
+        months_only = parse_months(text)
+        pending = storage.get_pending_amount(chat_id)
+        if amt_only and not months_only:
+            storage.set_pending_amount(chat_id, amt_only, rate_from_text)
+        elif pending and (months_only or parse_bare_years_answer(text)):
+            amount, rate = pending
+            months = months_only or parse_bare_years_answer(text)
+            storage.clear_pending_amount(chat_id)
     if amount and months:
-        rate = guess_rate(text) or 0.15
+        rate = rate or storage.get_credit_rate(chat_id) or 0.15
         payment = annuity_payment(amount, rate, months)
         reply = build_payment_message(amount, months, payment, current_lang)
         storage.set_awaiting_contact(chat_id, amount, months)
