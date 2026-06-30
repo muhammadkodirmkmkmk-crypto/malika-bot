@@ -35,6 +35,43 @@ def detect_uzbek(text: str) -> bool:
     return any(m in low for m in uzbek_markers)
 
 
+UZBEK_CYRILLIC_ONLY_RE = re.compile(r"[ўқғҳ]", re.IGNORECASE)
+UZBEK_CYRILLIC_WORDS = [
+    "керак", "илтимос", "хохлайман", "хоҳлайман", "беринг", "айтинг",
+    "яхши", "раҳмат", "рахмат", "мумкин", "бўлади", "буладими", "qancha",
+    "канча", "учун", "менга", "сизга", "олмоқчиман", "оламан",
+]
+
+
+def detect_language_lock(text: str) -> str | None:
+    """Определяет язык+алфавит по сообщению клиента для фиксации на весь диалог.
+    Возвращает 'uz_cyrillic' | 'uz_latin' | 'ru' | None (если непонятно)."""
+    low = text.lower()
+    has_uz_latin_marker = any(m in low for m in ["o'", "g'", "ʻ", "uchun", "bo'l", "qil", "kerak"])
+    has_uz_cyrillic_marker = bool(UZBEK_CYRILLIC_ONLY_RE.search(text)) or any(
+        w in low for w in UZBEK_CYRILLIC_WORDS
+    )
+    if has_uz_cyrillic_marker:
+        return "uz_cyrillic"
+    if has_uz_latin_marker:
+        return "uz_latin"
+    words = [w for w in re.findall(r"[a-zа-яё']+", low) if len(w) > 1]
+    # короткие/неоднозначные приветствия (салом, ассалому алайкум и т.п.)
+    # общие для рус. и узб. кириллицы — не фиксируем язык на одном таком слове
+    if len(words) < 2:
+        return None
+    if re.search(r"[а-яё]", low):
+        return "ru"
+    return None
+
+
+LANGUAGE_LOCK_LABELS = {
+    "uz_cyrillic": "узбекский, алфавит КИРИЛЛИЦА (не переключайся на латиницу)",
+    "uz_latin": "узбекский, алфавит ЛОТИН/латиница (не переключайся на кириллицу)",
+    "ru": "русский",
+}
+
+
 def detect_hot_lead(text: str) -> bool:
     low = text.lower()
     if PHONE_RE.search(text):

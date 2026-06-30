@@ -14,6 +14,8 @@ from utils import (
     annuity_payment,
     looks_like_contact_info,
     strip_system_note_leak,
+    detect_language_lock,
+    LANGUAGE_LOCK_LABELS,
 )
 
 logging.basicConfig(level=logging.INFO)
@@ -117,6 +119,18 @@ def webhook():
         notify_admin_hot_lead(chat_id, user, text)
 
     storage.append_message(chat_id, "user", text)
+
+    lock = detect_language_lock(text)
+    if lock:
+        storage.set_language_lock_if_absent(chat_id, lock)
+    current_lock = storage.get_language_lock(chat_id)
+    if current_lock:
+        storage.append_message(
+            chat_id,
+            "user",
+            f"[SYSTEM NOTE] Язык/алфавит этого диалога зафиксирован: "
+            f"{LANGUAGE_LOCK_LABELS[current_lock]}. Отвечай только так.",
+        )
 
     note, amount, months = build_system_note(text)
     if note:

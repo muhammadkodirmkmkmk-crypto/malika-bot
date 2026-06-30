@@ -13,6 +13,7 @@ _hot_lead_sent: set[int] = set()
 _awaiting_contact: set[int] = set()
 _new_client_sent: set[int] = set()
 _last_amount_months: dict[int, tuple] = {}
+_language_lock: dict[int, str] = {}
 
 
 def get_history(chat_id: int) -> list[dict]:
@@ -56,3 +57,12 @@ def was_new_client_reported(chat_id: int) -> bool:
 
 def mark_new_client_reported(chat_id: int) -> None:
     _new_client_sent.add(chat_id)
+
+
+def get_language_lock(chat_id: int) -> str | None:
+    return _language_lock.get(chat_id)
+
+
+def set_language_lock_if_absent(chat_id: int, lock: str) -> None:
+    if chat_id not in _language_lock:
+        _language_lock[chat_id] = lock
