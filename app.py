@@ -72,8 +72,9 @@ def webhook():
         storage.append_message(chat_id, "user", "/start")
         telegram_client.send_typing(chat_id)
         greeting = (
-            "Ассалому алайкум! 👋 Я Малика, консультант Baraka Consulting. "
-            "Помогу подобрать кредит — ипотека, авто или наличные. Что вас интересует?"
+            "Assalomu alaykum! 👋 Men Malika — Baraka Consulting maslahatchisiman. "
+            "Kredit tanlashda yordam beraman: ipoteka, avtokredit yoki naqd pul. "
+            "Qaysi biri sizni qiziqtiradi?"
         )
         storage.append_message(chat_id, "assistant", greeting)
         telegram_client.send_message(chat_id, greeting)
