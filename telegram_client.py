@@ -37,6 +37,17 @@ def send_typing(chat_id: int) -> None:
         pass
 
 
+def send_location(chat_id: int, latitude: float, longitude: float) -> None:
+    try:
+        requests.post(
+            f"{TELEGRAM_API_URL}/sendLocation",
+            json={"chat_id": chat_id, "latitude": latitude, "longitude": longitude},
+            timeout=10,
+        )
+    except Exception:
+        pass
+
+
 def set_webhook(url: str) -> dict:
     resp = requests.post(f"{TELEGRAM_API_URL}/setWebhook", json={"url": url}, timeout=15)
     return resp.json()

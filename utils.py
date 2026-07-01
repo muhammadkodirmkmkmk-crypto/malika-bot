@@ -103,7 +103,35 @@ def extract_phone(text: str) -> str | None:
     return m.group(0) if m else None
 
 
+EXPLICIT_RATE_RE = re.compile(
+    r"(\d{1,2}(?:[.,]\d+)?)\s*%|"          # 8% / 26% / 12,5%
+    r"по\s+(\d{1,2}(?:[.,]\d+)?)\s*процент|"  # по 8 процентов
+    r"(\d{1,2}(?:[.,]\d+)?)\s*процент",     # 26 процентов
+    re.IGNORECASE
+)
+
+
+def parse_explicit_rate(text: str) -> float | None:
+    """Извлекает явно указанную процентную ставку из текста клиента.
+    Например: 'по 8%', '26%', '12.5 процентов'. Только валидный диапазон 1–99%."""
+    for m in EXPLICIT_RATE_RE.finditer(text):
+        raw = m.group(1) or m.group(2) or m.group(3)
+        if raw:
+            try:
+                val = float(raw.replace(",", "."))
+                if 1 <= val <= 99:
+                    return val / 100
+            except ValueError:
+                pass
+    return None
+
+
 def guess_rate(text: str) -> float | None:
+    """Определяет ставку: сначала ищет явно указанный % в тексте,
+    затем по ключевым словам типа кредита."""
+    explicit = parse_explicit_rate(text)
+    if explicit:
+        return explicit
     low = text.lower()
     for key, rate in RATES.items():
         if key in low:
@@ -185,7 +213,8 @@ def format_usd(amount_uzs: float, usd_rate: float) -> str:
     return f"~${usd:,.0f}"
 
 
-def build_payment_message(amount: float, months: int, payment: float, lang: str) -> str:
+def build_payment_message(amount: float, months: int, payment: float, lang: str,
+                          rate: float = 0.26) -> str:
     """Готовый текст про ежемесячный платёж (дифференциальный, 26%) + долларовый
     эквивалент + просьба контактов. Сформирован кодом, без участия модели."""
     try:
@@ -206,7 +235,8 @@ def build_payment_message(amount: float, months: int, payment: float, lang: str)
             return f"Кечирасиз, максимал кредит суммаси {limit} сўм ({usd_limit}). {over} сўм бу лимитдан ошиб кетади."
         return f"Извините, максимальная сумма кредита — {limit} сум ({usd_limit}). Сумма {over} сум превышает наш лимит."
 
-    first, avg, last = differential_payments(amount, 0.26, months)
+    first, avg, last = differential_payments(amount, rate, months)
+    rate_pct = round(rate * 100)
     a       = format_sum(amount)
     usd_amt = format_usd(amount, usd_rate)
     f_str   = format_sum(first)
@@ -216,7 +246,7 @@ def build_payment_message(amount: float, months: int, payment: float, lang: str)
 
     if lang == "uz_latin":
         return (
-            f"Ajoyib! {a} so'm ({usd_amt}) summaga {months} oy muddatga, 26% yillik stavkada:\n\n"
+            f"Ajoyib! {a} so'm ({usd_amt}) summaga {months} oy muddatga, {rate_pct}% yillik stavkada:\n\n"
             f"📊 Birinchi to'lov: {f_str} so'm\n"
             f"📊 O'rtacha to'lov: {avg_str} so'm ({usd_avg})\n"
             f"📊 Oxirgi to'lov: {l_str} so'm\n\n"
@@ -225,7 +255,7 @@ def build_payment_message(amount: float, months: int, payment: float, lang: str)
         )
     if lang == "uz_cyrillic":
         return (
-            f"Аъло! {a} сўм ({usd_amt}) суммага {months} ой муддатга, йиллик 26% ставкада:\n\n"
+            f"Аъло! {a} сўм ({usd_amt}) суммага {months} ой муддатга, йиллик {rate_pct}% ставкада:\n\n"
             f"📊 Биринчи тўлов: {f_str} сўм\n"
             f"📊 Ўртача тўлов: {avg_str} сўм ({usd_avg})\n"
             f"📊 Охирги тўлов: {l_str} сўм\n\n"
@@ -233,7 +263,7 @@ def build_payment_message(amount: float, months: int, payment: float, lang: str)
             f"қайси туман ёки шаҳардан эканлигингиз ва телефон рақамингизни айта оласизми?"
         )
     return (
-        f"Супер! {a} сум ({usd_amt}) на {months} мес. по ставке 26% годовых (дифференцированный расчёт):\n\n"
+        f"Супер! {a} сум ({usd_amt}) на {months} мес. по ставке {rate_pct}% годовых (дифференцированный расчёт):\n\n"
         f"📊 Первый платёж: {f_str} сум\n"
         f"📊 Средний платёж: {avg_str} сум ({usd_avg})\n"
         f"📊 Последний платёж: {l_str} сум\n\n"

@@ -8,6 +8,7 @@ import telegram_client
 from claude_client import ask_malika
 from utils import (
     guess_rate,
+    parse_explicit_rate,
     parse_amount_and_months,
     parse_amount,
     parse_months,
@@ -24,6 +25,26 @@ logging.basicConfig(level=logging.INFO)
 log = logging.getLogger("malika-bot")
 
 app = Flask(__name__)
+
+# ─── Офис Baraka Consulting ───────────────────────────────────────────────────
+OFFICE_LAT  = 41.2995   # Ташкент, Учтепинский район
+OFFICE_LON  = 69.2401
+OFFICE_ADDR = {
+    "uz_latin":   "📍 Manzil: Toshkent, Uchtepa tumani\n📞 +998 95 087 77 66\n🕐 Du-Sha, 9:00–18:00",
+    "uz_cyrillic":"📍 Манзил: Тошкент, Учтепа тумани\n📞 +998 95 087 77 66\n🕐 Ду-Ша, 9:00–18:00",
+    "ru":         "📍 Адрес: Ташкент, Учтепинский район\n📞 +998 95 087 77 66\n🕐 Пн-Сб, 9:00–18:00",
+}
+
+LOCATION_KEYWORDS = [
+    "локаци", "адрес", "где вы", "где находит", "офис",
+    "manzil", "lokatsiya", "qayerda", "joylashuv", "ofis",
+    "манзил", "қаерда",
+]
+
+def is_location_request(text: str) -> bool:
+    low = text.lower()
+    return any(k in low for k in LOCATION_KEYWORDS)
+
 
 # ─── Кнопки выбора языка ─────────────────────────────────────────────────────
 
@@ -131,6 +152,12 @@ def webhook():
 
     storage.append_message(chat_id, "user", text)
 
+    # Запрос локации — отвечаем сразу, без модели
+    if is_location_request(text):
+        telegram_client.send_message(chat_id, OFFICE_ADDR.get(current_lang, OFFICE_ADDR["ru"]))
+        telegram_client.send_location(chat_id, OFFICE_LAT, OFFICE_LON)
+        return jsonify(ok=True)
+
     # Тип кредита — запоминаем на весь диалог
     rate_from_text = guess_rate(text)
     if rate_from_text:
@@ -153,7 +180,7 @@ def webhook():
     if amount and months:
         rate = rate or storage.get_credit_rate(chat_id) or 0.26
         payment = annuity_payment(amount, rate, months)
-        reply = build_payment_message(amount, months, payment, current_lang)
+        reply = build_payment_message(amount, months, payment, current_lang, rate=rate)
         storage.set_awaiting_contact(chat_id, amount, months)
         telegram_client.send_typing(chat_id)
         storage.append_message(chat_id, "assistant", reply)
