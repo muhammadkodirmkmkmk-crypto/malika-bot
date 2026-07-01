@@ -251,8 +251,7 @@ def format_usd(amount_uzs: float, usd_rate: float) -> str:
 
 def build_payment_message(amount: float, months: int, payment: float, lang: str,
                           rate: float = 0.26) -> str:
-    """Готовый текст про ежемесячный платёж (дифференциальный, 26%) + долларовый
-    эквивалент + просьба контактов. Сформирован кодом, без участия модели."""
+    """Простое сообщение: одна цифра среднего платежа в $ и сумах."""
     try:
         from config import USD_RATE, MAX_CREDIT_AMOUNT
         usd_rate = USD_RATE
@@ -264,47 +263,38 @@ def build_payment_message(amount: float, months: int, payment: float, lang: str,
     if amount > max_amount:
         limit = format_sum(max_amount)
         usd_limit = format_usd(max_amount, usd_rate)
-        over = format_sum(amount)
         if lang == "uz_latin":
-            return f"Kechirasiz, maksimal kredit summasi {limit} so'm ({usd_limit}). {over} so'm bu limitdan oshib ketadi."
+            return f"Kechirasiz, maksimal kredit summasi {limit} so'm ({usd_limit})."
         if lang == "uz_cyrillic":
-            return f"Кечирасиз, максимал кредит суммаси {limit} сўм ({usd_limit}). {over} сўм бу лимитдан ошиб кетади."
-        return f"Извините, максимальная сумма кредита — {limit} сум ({usd_limit}). Сумма {over} сум превышает наш лимит."
+            return f"Кечирасиз, максимал кредит суммаси {limit} сўм ({usd_limit})."
+        return f"Извините, максимальная сумма кредита — {limit} сум ({usd_limit})."
 
-    first, avg, last = differential_payments(amount, rate, months)
-    rate_pct = round(rate * 100)
-    a       = format_sum(amount)
-    usd_amt = format_usd(amount, usd_rate)
-    f_str   = format_sum(first)
-    avg_str = format_sum(avg)
-    l_str   = format_sum(last)
-    usd_avg = format_usd(avg, usd_rate)
+    _, avg, _ = differential_payments(amount, rate, months)
+    rate_pct   = round(rate * 100)
+    years      = months // 12
+    usd_amt    = format_usd(amount, usd_rate)
+    avg_sum    = format_sum(avg)
+    avg_usd    = format_usd(avg, usd_rate)
 
     if lang == "uz_latin":
         return (
-            f"Ajoyib! {a} so'm ({usd_amt}) summaga {months} oy muddatga, {rate_pct}% yillik stavkada:\n\n"
-            f"📊 Birinchi to'lov: {f_str} so'm\n"
-            f"📊 O'rtacha to'lov: {avg_str} so'm ({usd_avg})\n"
-            f"📊 Oxirgi to'lov: {l_str} so'm\n\n"
+            f"✅ {usd_amt} summaga {years} yil, {rate_pct}% stavkada —\n"
+            f"oyiga taxminan {avg_usd} ({avg_sum} so'm) to'laysiz.\n\n"
             f"Arizani tezroq ko'rib chiqilishi uchun ismingiz, familiyangiz, "
             f"qaysi tuman yoki shahardan ekanligingiz va telefon raqamingizni ayta olasizmi?"
         )
     if lang == "uz_cyrillic":
         return (
-            f"Аъло! {a} сўм ({usd_amt}) суммага {months} ой муддатга, йиллик {rate_pct}% ставкада:\n\n"
-            f"📊 Биринчи тўлов: {f_str} сўм\n"
-            f"📊 Ўртача тўлов: {avg_str} сўм ({usd_avg})\n"
-            f"📊 Охирги тўлов: {l_str} сўм\n\n"
+            f"✅ {usd_amt} суммага {years} йил, {rate_pct}% ставкада —\n"
+            f"ойига тахминан {avg_usd} ({avg_sum} сўм) тўлайсиз.\n\n"
             f"Аризани тезроқ кўриб чиқилиши учун исмингиз, фамилиянгиз, "
             f"қайси туман ёки шаҳардан эканлигингиз ва телефон рақамингизни айта оласизми?"
         )
     return (
-        f"Супер! {a} сум ({usd_amt}) на {months} мес. по ставке {rate_pct}% годовых (дифференцированный расчёт):\n\n"
-        f"📊 Первый платёж: {f_str} сум\n"
-        f"📊 Средний платёж: {avg_str} сум ({usd_avg})\n"
-        f"📊 Последний платёж: {l_str} сум\n\n"
-        f"Чтобы заявку рассмотрели быстрее, подскажите, пожалуйста, ваше имя, фамилию, "
-        f"город/район проживания и номер телефона?"
+        f"✅ {usd_amt} на {years} лет, {rate_pct}% годовых —\n"
+        f"ежемесячно примерно {avg_usd} ({avg_sum} сум).\n\n"
+        f"Чтобы заявку рассмотрели быстрее, подскажите ваше имя, фамилию, "
+        f"город/район и номер телефона?"
     )
 
 
