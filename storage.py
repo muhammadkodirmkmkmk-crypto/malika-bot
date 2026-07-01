@@ -65,9 +65,18 @@ def get_language_lock(chat_id: int) -> str | None:
     return _language_lock.get(chat_id)
 
 
+def set_language_lock(chat_id: int, lock: str) -> None:
+    """Явная установка языка — только после того как пользователь нажал кнопку."""
+    _language_lock[chat_id] = lock
+
+
 def set_language_lock_if_absent(chat_id: int, lock: str) -> None:
     if chat_id not in _language_lock:
         _language_lock[chat_id] = lock
+
+
+def is_language_chosen(chat_id: int) -> bool:
+    return chat_id in _language_lock
 
 
 def set_pending_amount(chat_id: int, amount: float, rate: float | None) -> None:

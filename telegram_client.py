@@ -2,12 +2,27 @@ import requests
 from config import TELEGRAM_API_URL
 
 
-def send_message(chat_id: int, text: str) -> None:
+def send_message(chat_id: int, text: str, reply_markup: dict | None = None) -> None:
+    payload = {"chat_id": chat_id, "text": text}
+    if reply_markup:
+        import json
+        payload["reply_markup"] = json.dumps(reply_markup)
     requests.post(
         f"{TELEGRAM_API_URL}/sendMessage",
-        json={"chat_id": chat_id, "text": text},
+        json=payload,
         timeout=15,
     )
+
+
+def answer_callback_query(callback_query_id: str, text: str = "") -> None:
+    try:
+        requests.post(
+            f"{TELEGRAM_API_URL}/answerCallbackQuery",
+            json={"callback_query_id": callback_query_id, "text": text},
+            timeout=5,
+        )
+    except Exception:
+        pass
 
 
 def send_typing(chat_id: int) -> None:

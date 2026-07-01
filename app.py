@@ -15,7 +15,6 @@ from utils import (
     annuity_payment,
     looks_like_contact_info,
     strip_markdown_asterisks,
-    detect_language_lock,
     LANGUAGE_LOCK_LABELS,
     build_payment_message,
     format_sum,
@@ -26,23 +25,46 @@ log = logging.getLogger("malika-bot")
 
 app = Flask(__name__)
 
-DEFAULT_LANG = "uz_latin"  # если язык ещё не определён однозначно
+# ─── Кнопки выбора языка ─────────────────────────────────────────────────────
 
+LANG_KEYBOARD = {
+    "inline_keyboard": [[
+        {"text": "O'zbek tili 🇺🇿", "callback_data": "lang|uz_latin"},
+        {"text": "Русский язык 🇷🇺",  "callback_data": "lang|ru"},
+    ]]
+}
+
+LANG_QUESTION = "Assalomu alaykum! 👋\n\nQaysi tilda muloqot qilishni afzal ko'rasiz?\nНа каком языке вам удобнее общаться?"
+
+GREETINGS = {
+    "uz_latin": (
+        "Assalomu alaykum! 👋 Men Odilbek — Baraka Consulting maslahatchisiman.\n"
+        "Kredit tanlashda yordam beraman: ipoteka, avtokredit yoki naqd pul.\n"
+        "Qaysi biri sizni qiziqtiradi?"
+    ),
+    "uz_cyrillic": (
+        "Ассалому алайкум! 👋 Мен Одилбек — Baraka Consulting маслаҳатчисиман.\n"
+        "Кредит танлашда ёрдам бераман: ипотека, автокредит ёки нақд пул.\n"
+        "Қайси бири сизни қизиқтиради?"
+    ),
+    "ru": (
+        "Здравствуйте! 👋 Я Одилбек, консультант Baraka Consulting.\n"
+        "Помогу подобрать кредит — ипотека, авто или наличные.\n"
+        "Что вас интересует?"
+    ),
+}
+
+
+# ─── Уведомления владельцам ───────────────────────────────────────────────────
 
 def send_lead_to_owner(chat_id: int, user, contact_text: str) -> None:
-    """Единое аккуратное уведомление о новом клиенте на узбекском языке —
-    отправляется один раз на OWNER_CHAT_ID, без дублей."""
     if not OWNER_CHAT_ID or storage.was_new_client_reported(chat_id):
         return
     username = f"@{user['username']}" if user.get("username") else "—"
     amount_months = storage.get_last_amount_months(chat_id)
-    if amount_months:
-        amount, months = amount_months
-        credit_line = f"{format_sum(amount)} so'm, {months} oy"
-    else:
-        credit_line = "—"
+    credit_line = f"{format_sum(amount_months[0])} so'm, {amount_months[1]} oy" if amount_months else "—"
     msg = (
-        "🆕 Yangi mijoz — Malika boti\n\n"
+        "🆕 Yangi mijoz — Odilbek boti\n\n"
         f"👤 Mijoz yuborgan ma'lumot:\n{contact_text}\n\n"
         f"💰 So'rov: {credit_line}\n"
         f"🔗 Telegram: {username}\n"
@@ -53,78 +75,84 @@ def send_lead_to_owner(chat_id: int, user, contact_text: str) -> None:
     storage.mark_new_client_reported(chat_id)
 
 
-def update_language_lock(chat_id: int, text: str) -> str:
-    """Определяет/фиксирует язык диалога, возвращает текущий действующий язык."""
-    lock = detect_language_lock(text)
-    if lock:
-        storage.set_language_lock_if_absent(chat_id, lock)
-    return storage.get_language_lock(chat_id) or DEFAULT_LANG
+# ─── Обработчик callback (кнопки) ────────────────────────────────────────────
 
+def handle_callback(data: dict) -> None:
+    cb_data = data.get("data", "")
+    chat_id = data["message"]["chat"]["id"]
+    cb_id   = data["id"]
+
+    if cb_data.startswith("lang|"):
+        lang = cb_data.split("|", 1)[1]
+        storage.set_language_lock(chat_id, lang)
+        telegram_client.answer_callback_query(cb_id)
+        greeting = GREETINGS.get(lang, GREETINGS["ru"])
+        storage.append_message(chat_id, "assistant", greeting)
+        telegram_client.send_typing(chat_id)
+        telegram_client.send_message(chat_id, greeting)
+
+
+# ─── Webhook ─────────────────────────────────────────────────────────────────
 
 @app.route("/webhook", methods=["POST"])
 def webhook():
     update = request.get_json(force=True, silent=True) or {}
+
+    # Нажатие на кнопку выбора языка
+    if "callback_query" in update:
+        handle_callback(update["callback_query"])
+        return jsonify(ok=True)
+
     message = update.get("message")
     if not message or "text" not in message:
         return jsonify(ok=True)
 
     chat_id = message["chat"]["id"]
-    user = message.get("from", {})
-    text = message["text"]
+    user    = message.get("from", {})
+    text    = message["text"]
 
+    # /start — всегда сбрасываем и показываем выбор языка
     if text.strip() == "/start":
-        storage.append_message(chat_id, "user", "/start")
-        telegram_client.send_typing(chat_id)
-        greeting = (
-            "Assalomu alaykum! 👋 Men Malika — Baraka Consulting maslahatchisiman. "
-            "Kredit tanlashda yordam beraman: ipoteka, avtokredit yoki naqd pul. "
-            "Qaysi biri sizni qiziqtiradi?"
-        )
-        storage.append_message(chat_id, "assistant", greeting)
-        telegram_client.send_message(chat_id, greeting)
+        storage._language_lock.pop(chat_id, None)  # сброс языка
+        telegram_client.send_message(chat_id, LANG_QUESTION, reply_markup=LANG_KEYBOARD)
         return jsonify(ok=True)
 
-    # Если ранее попросили контакты — проверяем, похоже ли это сообщение на них
+    # Если язык ещё не выбран — напоминаем нажать кнопку
+    if not storage.is_language_chosen(chat_id):
+        telegram_client.send_message(chat_id, LANG_QUESTION, reply_markup=LANG_KEYBOARD)
+        return jsonify(ok=True)
+
+    current_lang = storage.get_language_lock(chat_id)
+
+    # Если ранее попросили контакты — проверяем похоже ли ответ на них
     if storage.is_awaiting_contact(chat_id) and looks_like_contact_info(text):
         send_lead_to_owner(chat_id, user, text)
         storage.clear_awaiting_contact(chat_id)
 
     storage.append_message(chat_id, "user", text)
-    current_lang = update_language_lock(chat_id, text)
-    log.info(
-        "chat=%s text=%r detected_lock=%s stored_lock=%s current_lang=%s",
-        chat_id, text, detect_language_lock(text), storage.get_language_lock(chat_id), current_lang,
-    )
 
-    # Тип кредита (ставка) может быть назван в любом сообщении — запоминаем
-    # на весь диалог, чтобы не потерять его, когда сумма придёт позже отдельно
+    # Тип кредита — запоминаем на весь диалог
     rate_from_text = guess_rate(text)
     if rate_from_text:
         storage.set_credit_rate_if_absent(chat_id, rate_from_text)
 
-    # Если клиент назвал сумму и срок — платёж считает и пишет код,
-    # модель в этом шаге вообще не участвует (исключает любые "слитые" расчёты)
+    # Если клиент назвал сумму и срок — считаем сами (модель не участвует)
     amount, months = parse_amount_and_months(text)
     rate = rate_from_text if (amount and months) else None
     if not (amount and months):
-        # сумма и срок могли прийти в РАЗНЫХ сообщениях (например бот спросил
-        # "на сколько лет?", а клиент ответил просто "5") — связываем их
-        amt_only = parse_amount(text)
+        amt_only    = parse_amount(text)
         months_only = parse_months(text)
-        pending = storage.get_pending_amount(chat_id)
+        pending     = storage.get_pending_amount(chat_id)
         if amt_only and not months_only:
             storage.set_pending_amount(chat_id, amt_only, rate_from_text)
         elif pending and (months_only or parse_bare_years_answer(text)):
             amount, rate = pending
             months = months_only or parse_bare_years_answer(text)
             storage.clear_pending_amount(chat_id)
+
     if amount and months:
-        rate = rate or storage.get_credit_rate(chat_id) or 0.15
+        rate = rate or storage.get_credit_rate(chat_id) or 0.26
         payment = annuity_payment(amount, rate, months)
-        log.info(
-            "PAYMENT BRANCH chat=%s amount=%s months=%s rate=%s lang_used=%s",
-            chat_id, amount, months, rate, current_lang,
-        )
         reply = build_payment_message(amount, months, payment, current_lang)
         storage.set_awaiting_contact(chat_id, amount, months)
         telegram_client.send_typing(chat_id)
@@ -132,19 +160,19 @@ def webhook():
         telegram_client.send_message(chat_id, reply)
         return jsonify(ok=True)
 
+    # Обычный диалог — передаём модели
     telegram_client.send_typing(chat_id)
-
-    dynamic_addendum = f"Язык/алфавит этого диалога зафиксирован: {LANGUAGE_LOCK_LABELS[current_lang]}. Отвечай только так."
-
+    dynamic_addendum = (
+        f"Язык этого диалога ЗАФИКСИРОВАН: {LANGUAGE_LOCK_LABELS[current_lang]}. "
+        f"Отвечай ТОЛЬКО на этом языке и алфавите, без исключений, до конца разговора. "
+        f"Твоё имя — Odilbek, не Malika."
+    )
     try:
         reply = ask_malika(storage.get_history(chat_id), dynamic_addendum=dynamic_addendum)
         reply = strip_markdown_asterisks(reply)
     except Exception:
         log.exception("Claude API error")
-        reply = (
-            "Извините, небольшая техническая заминка 🙏 "
-            "Можете позвонить нам напрямую: +998 95 087 77 66"
-        )
+        reply = "Извините, небольшая техническая заминка 🙏 Позвоните нам: +998 95 087 77 66"
 
     storage.append_message(chat_id, "assistant", reply)
     telegram_client.send_message(chat_id, reply)
@@ -153,7 +181,7 @@ def webhook():
 
 @app.route("/", methods=["GET"])
 def health():
-    return jsonify(status="ok", bot="malika")
+    return jsonify(status="ok", bot="odilbek")
 
 
 if __name__ == "__main__":
