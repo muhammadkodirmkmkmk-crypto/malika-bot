@@ -17,3 +17,9 @@ CLAUDE_MODEL = os.environ.get("CLAUDE_MODEL", "claude-haiku-4-5-20251001")
 HISTORY_LIMIT = int(os.environ.get("HISTORY_LIMIT", "20"))
 
 TELEGRAM_API_URL = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}"
+
+# Курс доллара (сум за 1 USD) — обновлять вручную или через переменную окружения
+USD_RATE = float(os.environ.get("USD_RATE", "12800"))
+
+# Максимальная сумма кредита (сум)
+MAX_CREDIT_AMOUNT = float(os.environ.get("MAX_CREDIT_AMOUNT", "1000000000"))

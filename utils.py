@@ -159,37 +159,84 @@ def parse_amount_and_months(text: str):
     return amount, months
 
 
-def annuity_payment(amount: float, annual_rate: float, months: int) -> float:
-    """Аннуитетный платёж: P*r*(1+r)^n / ((1+r)^n - 1)."""
+def differential_payments(amount: float, annual_rate: float, months: int) -> tuple:
+    """Дифференциальный расчёт: основной долг делится равными частями,
+    проценты начисляются на остаток. Возвращает (first, average, last)."""
     r = annual_rate / 12
-    if r == 0:
-        return amount / months
-    factor = (1 + r) ** months
-    return amount * r * factor / (factor - 1)
+    principal = amount / months
+    first   = principal + amount * r
+    last    = principal + principal * r
+    average = principal + amount * r * (months + 1) / (2 * months)
+    return first, average, last
+
+
+def annuity_payment(amount: float, annual_rate: float, months: int) -> float:
+    """Псевдоним — возвращает средний платёж из дифференциальной системы."""
+    _, avg, _ = differential_payments(amount, annual_rate, months)
+    return avg
 
 
 def format_sum(value: float) -> str:
     return f"{value:,.0f}".replace(",", " ")
 
 
+def format_usd(amount_uzs: float, usd_rate: float) -> str:
+    usd = amount_uzs / usd_rate
+    return f"~${usd:,.0f}"
+
+
 def build_payment_message(amount: float, months: int, payment: float, lang: str) -> str:
-    """Готовый текст про ежемесячный платёж + просьба контактов,
-    полностью сформированный кодом (без участия модели) на нужном языке."""
-    a, m, p = format_sum(amount), months, format_sum(payment)
+    """Готовый текст про ежемесячный платёж (дифференциальный, 26%) + долларовый
+    эквивалент + просьба контактов. Сформирован кодом, без участия модели."""
+    try:
+        from config import USD_RATE, MAX_CREDIT_AMOUNT
+        usd_rate = USD_RATE
+        max_amount = MAX_CREDIT_AMOUNT
+    except Exception:
+        usd_rate = 12800.0
+        max_amount = 1_000_000_000.0
+
+    if amount > max_amount:
+        limit = format_sum(max_amount)
+        usd_limit = format_usd(max_amount, usd_rate)
+        over = format_sum(amount)
+        if lang == "uz_latin":
+            return f"Kechirasiz, maksimal kredit summasi {limit} so'm ({usd_limit}). {over} so'm bu limitdan oshib ketadi."
+        if lang == "uz_cyrillic":
+            return f"Кечирасиз, максимал кредит суммаси {limit} сўм ({usd_limit}). {over} сўм бу лимитдан ошиб кетади."
+        return f"Извините, максимальная сумма кредита — {limit} сум ({usd_limit}). Сумма {over} сум превышает наш лимит."
+
+    first, avg, last = differential_payments(amount, 0.26, months)
+    a       = format_sum(amount)
+    usd_amt = format_usd(amount, usd_rate)
+    f_str   = format_sum(first)
+    avg_str = format_sum(avg)
+    l_str   = format_sum(last)
+    usd_avg = format_usd(avg, usd_rate)
+
     if lang == "uz_latin":
         return (
-            f"Ajoyib! {a} so'm summaga {m} oy muddatga oylik to'lov taxminan {p} so'm bo'ladi 😊\n\n"
-            f"Arizani tezroq ko'rib chiqilishi uchun ismingiz, familiyangiz, qaysi tuman "
-            f"yoki shahardan ekanligingiz va telefon raqamingizni ayta olasizmi?"
+            f"Ajoyib! {a} so'm ({usd_amt}) summaga {months} oy muddatga, 26% yillik stavkada:\n\n"
+            f"📊 Birinchi to'lov: {f_str} so'm\n"
+            f"📊 O'rtacha to'lov: {avg_str} so'm ({usd_avg})\n"
+            f"📊 Oxirgi to'lov: {l_str} so'm\n\n"
+            f"Arizani tezroq ko'rib chiqilishi uchun ismingiz, familiyangiz, "
+            f"qaysi tuman yoki shahardan ekanligingiz va telefon raqamingizni ayta olasizmi?"
         )
     if lang == "uz_cyrillic":
         return (
-            f"Аъло! {a} сўм суммага {m} ой муддатга ойлик тўлов тахминан {p} сўм бўлади 😊\n\n"
-            f"Аризани тезроқ кўриб чиқилиши учун исмингиз, фамилиянгиз, қайси туман "
-            f"ёки шаҳардан эканлигингиз ва телефон рақамингизни айта оласизми?"
+            f"Аъло! {a} сўм ({usd_amt}) суммага {months} ой муддатга, йиллик 26% ставкада:\n\n"
+            f"📊 Биринчи тўлов: {f_str} сўм\n"
+            f"📊 Ўртача тўлов: {avg_str} сўм ({usd_avg})\n"
+            f"📊 Охирги тўлов: {l_str} сўм\n\n"
+            f"Аризани тезроқ кўриб чиқилиши учун исмингиз, фамилиянгиз, "
+            f"қайси туман ёки шаҳардан эканлигингиз ва телефон рақамингизни айта оласизми?"
         )
     return (
-        f"Супер! По {a} сум на {m} мес. ежемесячный платёж составит примерно {p} сум 😊\n\n"
+        f"Супер! {a} сум ({usd_amt}) на {months} мес. по ставке 26% годовых (дифференцированный расчёт):\n\n"
+        f"📊 Первый платёж: {f_str} сум\n"
+        f"📊 Средний платёж: {avg_str} сум ({usd_avg})\n"
+        f"📊 Последний платёж: {l_str} сум\n\n"
         f"Чтобы заявку рассмотрели быстрее, подскажите, пожалуйста, ваше имя, фамилию, "
         f"город/район проживания и номер телефона?"
     )
