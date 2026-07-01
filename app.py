@@ -30,9 +30,22 @@ app = Flask(__name__)
 OFFICE_LAT  = 41.285384
 OFFICE_LON  = 69.169782
 OFFICE_ADDR = {
-    "uz_latin":   "📍 Manzil: Toshkent, Uchtepa tumani\n📞 +998 95 087 77 66\n🕐 Du-Sha, 9:00–18:00",
-    "uz_cyrillic":"📍 Манзил: Тошкент, Учтепа тумани\n📞 +998 95 087 77 66\n🕐 Ду-Ша, 9:00–18:00",
-    "ru":         "📍 Адрес: Ташкент, Учтепинский район\n📞 +998 95 087 77 66\n🕐 Пн-Сб, 9:00–18:00",
+    "uz_latin":   "📍 Manzil: Toshkent, Uchtepa tumani\n📞 +998 95 087 77 66\n📞 +998 99 939 55 56\n🕐 Du-Sha, 9:00–18:00",
+    "uz_cyrillic":"📍 Манзил: Тошкент, Учтепа тумани\n📞 +998 95 087 77 66\n📞 +998 99 939 55 56\n🕐 Ду-Ша, 9:00–18:00",
+    "ru":         "📍 Адрес: Ташкент, Учтепинский район\n📞 +998 95 087 77 66\n📞 +998 99 939 55 56\n🕐 Пн-Сб, 9:00–18:00",
+}
+
+RATE_QUESTION = {
+    "uz_latin":   "Qanday foiz stavkasini ko'rib chiqmoqchisiz?",
+    "uz_cyrillic":"Қандай фоиз ставкасини кўриб чиқмоқчисиз?",
+    "ru":         "По какой процентной ставке хотите рассчитать?",
+}
+
+RATE_KEYBOARD = {
+    "inline_keyboard": [[
+        {"text": "8% 🟢",  "callback_data": "rate|0.08"},
+        {"text": "26% 🔴", "callback_data": "rate|0.26"},
+    ]]
 }
 
 LOCATION_KEYWORDS = [
@@ -112,6 +125,22 @@ def handle_callback(data: dict) -> None:
         telegram_client.send_typing(chat_id)
         telegram_client.send_message(chat_id, greeting)
 
+    elif cb_data.startswith("rate|"):
+        rate = float(cb_data.split("|", 1)[1])
+        telegram_client.answer_callback_query(cb_id)
+        pending = storage.get_pending_calculation(chat_id)
+        if not pending:
+            return
+        amount, months = pending
+        storage.clear_pending_calculation(chat_id)
+        current_lang = storage.get_language_lock(chat_id) or "ru"
+        payment = annuity_payment(amount, rate, months)
+        reply = build_payment_message(amount, months, payment, current_lang, rate=rate)
+        storage.set_awaiting_contact(chat_id, amount, months)
+        storage.append_message(chat_id, "assistant", reply)
+        telegram_client.send_typing(chat_id)
+        telegram_client.send_message(chat_id, reply)
+
 
 # ─── Webhook ─────────────────────────────────────────────────────────────────
 
@@ -178,13 +207,11 @@ def webhook():
             storage.clear_pending_amount(chat_id)
 
     if amount and months:
-        rate = rate or storage.get_credit_rate(chat_id) or 0.26
-        payment = annuity_payment(amount, rate, months)
-        reply = build_payment_message(amount, months, payment, current_lang, rate=rate)
-        storage.set_awaiting_contact(chat_id, amount, months)
+        # Сохраняем сумму+срок и спрашиваем ставку кнопками
+        storage.set_pending_calculation(chat_id, amount, months)
+        question = RATE_QUESTION.get(current_lang, RATE_QUESTION["ru"])
         telegram_client.send_typing(chat_id)
-        storage.append_message(chat_id, "assistant", reply)
-        telegram_client.send_message(chat_id, reply)
+        telegram_client.send_message(chat_id, question, reply_markup=RATE_KEYBOARD)
         return jsonify(ok=True)
 
     # Обычный диалог — передаём модели

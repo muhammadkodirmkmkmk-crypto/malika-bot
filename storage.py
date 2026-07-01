@@ -16,6 +16,7 @@ _last_amount_months: dict[int, tuple] = {}
 _language_lock: dict[int, str] = {}
 _pending_amount: dict[int, tuple] = {}  # (amount, rate_or_None)
 _credit_rate: dict[int, float] = {}
+_pending_calculation: dict[int, tuple] = {}  # (amount, months) — ждём ставку от клиента
 
 
 def get_history(chat_id: int) -> list[dict]:
@@ -98,3 +99,19 @@ def set_credit_rate_if_absent(chat_id: int, rate: float) -> None:
 
 def get_credit_rate(chat_id: int) -> float | None:
     return _credit_rate.get(chat_id)
+
+
+def set_pending_calculation(chat_id: int, amount: float, months: int) -> None:
+    _pending_calculation[chat_id] = (amount, months)
+
+
+def get_pending_calculation(chat_id: int) -> tuple | None:
+    return _pending_calculation.get(chat_id)
+
+
+def clear_pending_calculation(chat_id: int) -> None:
+    _pending_calculation.pop(chat_id, None)
+
+
+def is_awaiting_rate(chat_id: int) -> bool:
+    return chat_id in _pending_calculation
