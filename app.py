@@ -1,6 +1,6 @@
 import logging
 from flask import Flask, request, jsonify
-from config import OWNER_CHAT_ID, OWNER_CHAT_ID_2
+from config import OWNER_CHAT_ID, OWNER_CHAT_ID_2, OWNER_CHAT_ID_3
 import storage
 import telegram_client
 from claude_client import ask_malika
@@ -168,6 +168,7 @@ def send_lead_to_owner(chat_id: int, user, contact_text: str) -> None:
     )
     telegram_client.send_message(OWNER_CHAT_ID, msg)
     telegram_client.send_message(OWNER_CHAT_ID_2, msg)
+    telegram_client.send_message(OWNER_CHAT_ID_3, msg)
     storage.mark_new_client_reported(chat_id)
 
     from datetime import datetime
