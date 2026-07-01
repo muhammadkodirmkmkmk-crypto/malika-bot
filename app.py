@@ -7,7 +7,8 @@ from claude_client import ask_malika
 from sheets_client import append_lead, ensure_headers
 from utils import (
     guess_rate, parse_explicit_rate,
-    parse_amount_and_months, parse_amount, parse_months, parse_bare_years_answer,
+    parse_amount_and_months, parse_amount, parse_amount_with_currency,
+    parse_months, parse_bare_years_answer,
     annuity_payment, looks_like_contact_info, strip_markdown_asterisks,
     LANGUAGE_LOCK_LABELS, build_payment_message, format_sum,
 )
@@ -238,8 +239,9 @@ def handle_callback(data: dict) -> None:
         storage.clear_pending_calculation(chat_id)
         storage.set_credit_rate(chat_id, rate)
         current_lang = storage.get_language_lock(chat_id) or "ru"
+        currency = storage.get_amount_currency(chat_id)
         payment = annuity_payment(amount, rate, months)
-        reply = build_payment_message(amount, months, payment, current_lang, rate=rate)
+        reply = build_payment_message(amount, months, payment, current_lang, rate=rate, currency=currency)
         storage.set_awaiting_contact(chat_id, amount, months)
         storage.append_message(chat_id, "assistant", reply)
         telegram_client.send_typing(chat_id)
@@ -302,8 +304,9 @@ def webhook():
             amount, months = pending
             storage.clear_pending_calculation(chat_id)
             storage.set_credit_rate(chat_id, rate_from_text)
+            currency = storage.get_amount_currency(chat_id)
             payment = annuity_payment(amount, rate_from_text, months)
-            reply = build_payment_message(amount, months, payment, current_lang, rate=rate_from_text)
+            reply = build_payment_message(amount, months, payment, current_lang, rate=rate_from_text, currency=currency)
             storage.set_awaiting_contact(chat_id, amount, months)
             telegram_client.send_typing(chat_id)
             storage.append_message(chat_id, "assistant", reply)
@@ -313,13 +316,14 @@ def webhook():
     # Парсинг суммы и срока
     amount, months = parse_amount_and_months(text)
     rate = rate_from_text if (amount and months) else None
+    currency = 'uzs'
     if not (amount and months):
-        amt_only    = parse_amount(text)
+        amt_only, cur = parse_amount_with_currency(text)
         months_only = parse_months(text)
         pending     = storage.get_pending_amount(chat_id)
         if amt_only and not months_only:
             storage.set_pending_amount(chat_id, amt_only, rate_from_text)
-            # Спрашиваем срок сами — не передаём Claude
+            storage.set_amount_currency(chat_id, cur)
             question = TERM_QUESTION.get(current_lang, TERM_QUESTION["ru"])
             telegram_client.send_typing(chat_id)
             telegram_client.send_message(chat_id, question)
@@ -327,10 +331,14 @@ def webhook():
         elif pending and (months_only or parse_bare_years_answer(text)):
             amount, rate = pending
             months = months_only or parse_bare_years_answer(text)
+            currency = storage.get_amount_currency(chat_id)
             storage.clear_pending_amount(chat_id)
+    else:
+        _, currency = parse_amount_with_currency(text)
 
     if amount and months:
         storage.set_pending_calculation(chat_id, amount, months)
+        storage.set_amount_currency(chat_id, currency)
         question = RATE_QUESTION.get(current_lang, RATE_QUESTION["ru"])
         telegram_client.send_typing(chat_id)
         telegram_client.send_message(chat_id, question, reply_markup=RATE_KEYBOARD)

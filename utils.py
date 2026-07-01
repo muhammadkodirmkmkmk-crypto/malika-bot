@@ -141,51 +141,56 @@ def guess_rate(text: str) -> float | None:
 
 def parse_amount(text: str) -> float | None:
     """Парсер суммы (в сумах) из текста. Поддерживает млн/mln, доллары, минг/ming."""
+    result, _ = parse_amount_with_currency(text)
+    return result
+
+
+def parse_amount_with_currency(text: str) -> tuple[float | None, str]:
+    """Возвращает (amount_in_uzs, currency) где currency='uzs' или 'usd'."""
     low = text.lower()
 
     # Миллионы сумов: 500 млн, 50mln, 300 million
     amount_match = re.search(r"(\d{2,}(?:[.,]\d+)?)\s*(млн|million|mln)", low)
     if amount_match:
         num = float(amount_match.group(1).replace(",", "."))
-        return num * 1_000_000
+        return num * 1_000_000, 'uzs'
 
-    # Тысячи: 20 минг, 20 ming, 20 тысяч, 20k
-    thousand_match = re.search(
-        r"(\d{1,6}(?:[.,]\d+)?)\s*(?:минг|ming|тысяч|тыс|k\b)",
-        low
-    )
-    if thousand_match:
-        num = float(thousand_match.group(1).replace(",", "."))
-        amount_in_units = num * 1000
-        # Если число тысяч похоже на долларовую сумму (до ~100 000$) — конвертируем в сумы
-        if amount_in_units <= 100_000:
-            try:
-                from config import USD_RATE
-                return amount_in_units * USD_RATE
-            except ImportError:
-                return amount_in_units * 12800
-        return amount_in_units
+    # Тысячи в сумах: 500 минг сум, 500 ming so'm (явно указаны сумы)
+    sum_thousand = re.search(r"(\d{1,6}(?:[.,]\d+)?)\s*(минг|ming)\s*(сум|so['\u02bcm]|sum)", low)
+    if sum_thousand:
+        num = float(sum_thousand.group(1).replace(",", "."))
+        return num * 1000, 'uzs'
 
-    # Доллары: 20000$, $20000, 20000 dollar, 20000 usd
-    dollar_match = re.search(
-        r"\$\s*([\d\s.,]+)|([\d\s.,]+)\s*(?:\$|dollar|usd|дол)",
-        low
-    )
+    # Доллары: 20000$, $20000, 20000 dollar, 20000 usd, 20 минг dollar
+    dollar_match = re.search(r"\$\s*([\d\s.,]+)|([\d\s.,]+)\s*(?:\$|dollar|usd|дол)", low)
     if dollar_match:
         raw = (dollar_match.group(1) or dollar_match.group(2) or "").replace(" ", "").replace(",", "")
         try:
             usd_val = float(raw)
             if usd_val >= 100:
                 from config import USD_RATE
-                return usd_val * USD_RATE
+                return usd_val * USD_RATE, 'usd'
         except (ValueError, ImportError):
             pass
 
-    # Голое большое число (от 7 цифр = минимум 1 млн сум)
+    # Тысячи без явной валюты — считаем долларами (20 минг = $20,000)
+    thousand_match = re.search(r"(\d{1,6}(?:[.,]\d+)?)\s*(?:минг|ming|тысяч|тыс)\b", low)
+    if thousand_match:
+        num = float(thousand_match.group(1).replace(",", "."))
+        amount_in_units = num * 1000
+        if amount_in_units <= 100_000:
+            try:
+                from config import USD_RATE
+                return amount_in_units * USD_RATE, 'usd'
+            except ImportError:
+                return amount_in_units * 12800, 'usd'
+        return amount_in_units, 'uzs'
+
+    # Голое большое число (от 7 цифр)
     plain = re.search(r"\b(\d{7,})\b", low.replace(" ", ""))
     if plain:
-        return float(plain.group(1))
-    return None
+        return float(plain.group(1)), 'uzs'
+    return None, 'uzs'
 
 
 def parse_months(text: str) -> int | None:
@@ -250,15 +255,15 @@ def format_usd(amount_uzs: float, usd_rate: float) -> str:
 
 
 def build_payment_message(amount: float, months: int, payment: float, lang: str,
-                          rate: float = 0.26) -> str:
-    """Простое сообщение: одна цифра среднего платежа в $ и сумах."""
+                          rate: float = 0.26, currency: str = 'uzs') -> str:
+    """Показывает результат в той валюте, в которой писал клиент."""
     try:
         from config import USD_RATE, MAX_CREDIT_AMOUNT
         usd_rate = USD_RATE
         max_amount = MAX_CREDIT_AMOUNT
     except Exception:
         usd_rate = 12800.0
-        max_amount = 1_000_000_000.0
+        max_amount = 10_000_000_000.0
 
     if amount > max_amount:
         limit = format_sum(max_amount)
@@ -270,32 +275,58 @@ def build_payment_message(amount: float, months: int, payment: float, lang: str,
         return f"Извините, максимальная сумма кредита — {limit} сум ({usd_limit})."
 
     _, avg, _ = differential_payments(amount, rate, months)
-    rate_pct   = round(rate * 100)
-    years      = months // 12
-    usd_amt    = format_usd(amount, usd_rate)
-    avg_sum    = format_sum(avg)
-    avg_usd    = format_usd(avg, usd_rate)
+    rate_pct = round(rate * 100)
+    years    = months // 12
 
-    if lang == "uz_latin":
+    if currency == 'usd':
+        # Клиент писал в долларах — показываем в долларах
+        usd_amt  = format_usd(amount, usd_rate)
+        avg_usd  = format_usd(avg, usd_rate)
+        avg_sum  = format_sum(avg)
+        if lang == "uz_latin":
+            return (
+                f"✅ {usd_amt} summaga {years} yil, {rate_pct}% stavkada —\n"
+                f"oyiga taxminan {avg_usd} ({avg_sum} so'm) to'laysiz.\n\n"
+                f"Arizani tezroq ko'rib chiqilishi uchun ismingiz, familiyangiz, "
+                f"qaysi tuman yoki shahardan ekanligingiz va telefon raqamingizni ayta olasizmi?"
+            )
+        if lang == "uz_cyrillic":
+            return (
+                f"✅ {usd_amt} суммага {years} йил, {rate_pct}% ставкада —\n"
+                f"ойига тахминан {avg_usd} ({avg_sum} сўм) тўлайсиз.\n\n"
+                f"Аризани тезроқ кўриб чиқилиши учун исмингиз, фамилиянгиз, "
+                f"қайси туман ёки шаҳардан эканлигингиз ва телефон рақамингизни айта оласизми?"
+            )
         return (
-            f"✅ {usd_amt} summaga {years} yil, {rate_pct}% stavkada —\n"
-            f"oyiga taxminan {avg_usd} ({avg_sum} so'm) to'laysiz.\n\n"
-            f"Arizani tezroq ko'rib chiqilishi uchun ismingiz, familiyangiz, "
-            f"qaysi tuman yoki shahardan ekanligingiz va telefon raqamingizni ayta olasizmi?"
+            f"✅ {usd_amt} на {years} лет, {rate_pct}% годовых —\n"
+            f"ежемесячно примерно {avg_usd} ({avg_sum} сум).\n\n"
+            f"Чтобы заявку рассмотрели быстрее, подскажите ваше имя, фамилию, "
+            f"город/район и номер телефона?"
         )
-    if lang == "uz_cyrillic":
+    else:
+        # Клиент писал в сумах — показываем только в сумах
+        a_str   = format_sum(amount)
+        avg_str = format_sum(avg)
+        if lang == "uz_latin":
+            return (
+                f"✅ {a_str} so'm summaga {years} yil, {rate_pct}% stavkada —\n"
+                f"oyiga taxminan {avg_str} so'm to'laysiz.\n\n"
+                f"Arizani tezroq ko'rib chiqilishi uchun ismingiz, familiyangiz, "
+                f"qaysi tuman yoki shahardan ekanligingiz va telefon raqamingizni ayta olasizmi?"
+            )
+        if lang == "uz_cyrillic":
+            return (
+                f"✅ {a_str} сўм суммага {years} йил, {rate_pct}% ставкада —\n"
+                f"ойига тахминан {avg_str} сўм тўлайсиз.\n\n"
+                f"Аризани тезроқ кўриб чиқилиши учун исмингиз, фамилиянгиз, "
+                f"қайси туман ёки шаҳардан эканлигингиз ва телефон рақамингизни айта оласизми?"
+            )
         return (
-            f"✅ {usd_amt} суммага {years} йил, {rate_pct}% ставкада —\n"
-            f"ойига тахминан {avg_usd} ({avg_sum} сўм) тўлайсиз.\n\n"
-            f"Аризани тезроқ кўриб чиқилиши учун исмингиз, фамилиянгиз, "
-            f"қайси туман ёки шаҳардан эканлигингиз ва телефон рақамингизни айта оласизми?"
+            f"✅ {a_str} сум на {years} лет, {rate_pct}% годовых —\n"
+            f"ежемесячно примерно {avg_str} сум.\n\n"
+            f"Чтобы заявку рассмотрели быстрее, подскажите ваше имя, фамилию, "
+            f"город/район и номер телефона?"
         )
-    return (
-        f"✅ {usd_amt} на {years} лет, {rate_pct}% годовых —\n"
-        f"ежемесячно примерно {avg_usd} ({avg_sum} сум).\n\n"
-        f"Чтобы заявку рассмотрели быстрее, подскажите ваше имя, фамилию, "
-        f"город/район и номер телефона?"
-    )
 
 
 def looks_like_contact_info(text: str) -> bool:
