@@ -49,9 +49,15 @@ RATE_KEYBOARD = {
 }
 
 LOCATION_KEYWORDS = [
-    "локаци", "адрес", "где вы", "где находит", "офис",
-    "manzil", "lokatsiya", "qayerda", "joylashuv", "ofis",
-    "манзил", "қаерда", "location", "карта",
+    # русский
+    "локаци", "адрес", "где вы", "где находит", "офис", "карта", "маршрут",
+    # узбекский латиница (все варианты написания)
+    "manzil", "lokatsiya", "lakatsiya", "lokatsia", "qayerda", "joylashuv", "ofis",
+    "xarita", "yo'nalish", "yonalish",
+    # узбекский кириллица
+    "манзил", "қаерда", "харита", "йўналиш",
+    # английский
+    "location", "address", "map",
 ]
 
 SOCIAL_KEYWORDS = [
@@ -189,14 +195,7 @@ def webhook():
 
     current_lang = storage.get_language_lock(chat_id)
 
-    # Если ранее попросили контакты — проверяем похоже ли ответ на них
-    if storage.is_awaiting_contact(chat_id) and looks_like_contact_info(text):
-        send_lead_to_owner(chat_id, user, text)
-        storage.clear_awaiting_contact(chat_id)
-
-    storage.append_message(chat_id, "user", text)
-
-    # Запрос локации — отвечаем сразу, без модели
+    # Запрос локации — проверяем ПЕРВЫМ, до всего остального
     if is_location_request(text):
         telegram_client.send_message(chat_id, OFFICE_ADDR.get(current_lang, OFFICE_ADDR["ru"]))
         telegram_client.send_location(chat_id, OFFICE_LAT, OFFICE_LON)
@@ -206,6 +205,13 @@ def webhook():
     if is_social_request(text):
         telegram_client.send_message(chat_id, SOCIAL_TEXT.get(current_lang, SOCIAL_TEXT["ru"]))
         return jsonify(ok=True)
+
+    # Если ранее попросили контакты — проверяем похоже ли ответ на них
+    if storage.is_awaiting_contact(chat_id) and looks_like_contact_info(text):
+        send_lead_to_owner(chat_id, user, text)
+        storage.clear_awaiting_contact(chat_id)
+
+    storage.append_message(chat_id, "user", text)
 
     # Тип кредита — запоминаем на весь диалог
     rate_from_text = guess_rate(text)
