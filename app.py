@@ -212,6 +212,21 @@ def webhook():
     if rate_from_text:
         storage.set_credit_rate_if_absent(chat_id, rate_from_text)
 
+    # Если уже ждём ставку (pending_calculation задан) и клиент написал её текстом
+    # вместо нажатия кнопки — считаем сразу
+    if storage.is_awaiting_rate(chat_id) and rate_from_text:
+        pending = storage.get_pending_calculation(chat_id)
+        if pending:
+            amount, months = pending
+            storage.clear_pending_calculation(chat_id)
+            payment = annuity_payment(amount, rate_from_text, months)
+            reply = build_payment_message(amount, months, payment, current_lang, rate=rate_from_text)
+            storage.set_awaiting_contact(chat_id, amount, months)
+            telegram_client.send_typing(chat_id)
+            storage.append_message(chat_id, "assistant", reply)
+            telegram_client.send_message(chat_id, reply)
+            return jsonify(ok=True)
+
     # Если клиент назвал сумму и срок — считаем сами (модель не участвует)
     amount, months = parse_amount_and_months(text)
     rate = rate_from_text if (amount and months) else None

@@ -104,18 +104,18 @@ def extract_phone(text: str) -> str | None:
 
 
 EXPLICIT_RATE_RE = re.compile(
-    r"(\d{1,2}(?:[.,]\d+)?)\s*%|"          # 8% / 26% / 12,5%
-    r"по\s+(\d{1,2}(?:[.,]\d+)?)\s*процент|"  # по 8 процентов
-    r"(\d{1,2}(?:[.,]\d+)?)\s*процент",     # 26 процентов
+    r"(\d{1,2}(?:[.,]\d+)?)\s*%|"
+    r"по\s+(\d{1,2}(?:[.,]\d+)?)\s*процент|"
+    r"(\d{1,2}(?:[.,]\d+)?)\s*процент|"
+    r"(\d{1,2}(?:[.,]\d+)?)\s*(?:фоизлик|фоиз|foizlik|foiz)",
     re.IGNORECASE
 )
 
 
 def parse_explicit_rate(text: str) -> float | None:
-    """Извлекает явно указанную процентную ставку из текста клиента.
-    Например: 'по 8%', '26%', '12.5 процентов'. Только валидный диапазон 1–99%."""
+    """Извлекает явно указанную процентную ставку из текста клиента."""
     for m in EXPLICIT_RATE_RE.finditer(text):
-        raw = m.group(1) or m.group(2) or m.group(3)
+        raw = m.group(1) or m.group(2) or m.group(3) or m.group(4)
         if raw:
             try:
                 val = float(raw.replace(",", "."))
@@ -140,7 +140,7 @@ def guess_rate(text: str) -> float | None:
 
 
 def parse_amount(text: str) -> float | None:
-    """Парсер суммы (в сумах) из текста. Поддерживает млн/mln и доллары."""
+    """Парсер суммы (в сумах) из текста. Поддерживает млн/mln, доллары, минг/ming."""
     low = text.lower()
 
     # Миллионы сумов: 500 млн, 50mln, 300 million
@@ -149,7 +149,24 @@ def parse_amount(text: str) -> float | None:
         num = float(amount_match.group(1).replace(",", "."))
         return num * 1_000_000
 
-    # Доллары: 20000$, $20000, 20000 dollar, 20000 usd, 20 000$
+    # Тысячи: 20 минг, 20 ming, 20 тысяч, 20k
+    thousand_match = re.search(
+        r"(\d{1,6}(?:[.,]\d+)?)\s*(?:минг|ming|тысяч|тыс|k\b)",
+        low
+    )
+    if thousand_match:
+        num = float(thousand_match.group(1).replace(",", "."))
+        amount_in_units = num * 1000
+        # Если число тысяч похоже на долларовую сумму (до ~100 000$) — конвертируем в сумы
+        if amount_in_units <= 100_000:
+            try:
+                from config import USD_RATE
+                return amount_in_units * USD_RATE
+            except ImportError:
+                return amount_in_units * 12800
+        return amount_in_units
+
+    # Доллары: 20000$, $20000, 20000 dollar, 20000 usd
     dollar_match = re.search(
         r"\$\s*([\d\s.,]+)|([\d\s.,]+)\s*(?:\$|dollar|usd|дол)",
         low
