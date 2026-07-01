@@ -27,8 +27,8 @@ log = logging.getLogger("malika-bot")
 app = Flask(__name__)
 
 # ─── Офис Baraka Consulting ───────────────────────────────────────────────────
-OFFICE_LAT  = 41.2995   # Ташкент, Учтепинский район
-OFFICE_LON  = 69.2401
+OFFICE_LAT  = 41.285384
+OFFICE_LON  = 69.169782
 OFFICE_ADDR = {
     "uz_latin":   "📍 Manzil: Toshkent, Uchtepa tumani\n📞 +998 95 087 77 66\n🕐 Du-Sha, 9:00–18:00",
     "uz_cyrillic":"📍 Манзил: Тошкент, Учтепа тумани\n📞 +998 95 087 77 66\n🕐 Ду-Ша, 9:00–18:00",
