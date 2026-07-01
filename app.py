@@ -101,7 +101,11 @@ EXTRA_SERVICES = {
 }
 
 # ─── Вопрос ставки ────────────────────────────────────────────────────────────
-RATE_QUESTION = {
+TERM_QUESTION = {
+    "uz_latin":   "Yaxshi! Qancha muddatga olmoqchisiz? (5 yildan 10 yilgacha)",
+    "uz_cyrillic":"Яхши! Қанча муддатга олмоқчисиз? (5 йилдан 10 йилгача)",
+    "ru":         "Отлично! На какой срок рассматриваете? (от 5 до 10 лет)",
+}
     "uz_latin":   "Qanday foiz stavkasini ko'rib chiqmoqchisiz?",
     "uz_cyrillic":"Қандай фоиз ставкасини кўриб чиқмоқчисиз?",
     "ru":         "По какой процентной ставке хотите рассчитать?",
@@ -307,6 +311,11 @@ def webhook():
         pending     = storage.get_pending_amount(chat_id)
         if amt_only and not months_only:
             storage.set_pending_amount(chat_id, amt_only, rate_from_text)
+            # Спрашиваем срок сами — не передаём Claude
+            question = TERM_QUESTION.get(current_lang, TERM_QUESTION["ru"])
+            telegram_client.send_typing(chat_id)
+            telegram_client.send_message(chat_id, question)
+            return jsonify(ok=True)
         elif pending and (months_only or parse_bare_years_answer(text)):
             amount, rate = pending
             months = months_only or parse_bare_years_answer(text)
