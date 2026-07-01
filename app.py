@@ -30,9 +30,9 @@ app = Flask(__name__)
 OFFICE_LAT  = 41.285384
 OFFICE_LON  = 69.169782
 OFFICE_ADDR = {
-    "uz_latin":   "📍 Manzil: Toshkent, Uchtepa tumani\n📞 +998 95 087 77 66\n📞 +998 99 939 55 56\n🕐 Du-Sha, 9:00–18:00",
-    "uz_cyrillic":"📍 Манзил: Тошкент, Учтепа тумани\n📞 +998 95 087 77 66\n📞 +998 99 939 55 56\n🕐 Ду-Ша, 9:00–18:00",
-    "ru":         "📍 Адрес: Ташкент, Учтепинский район\n📞 +998 95 087 77 66\n📞 +998 99 939 55 56\n🕐 Пн-Сб, 9:00–18:00",
+    "uz_latin":   "📍 Manzil: Toshkent, Uchtepa tumani\n📞 +998 95 087 77 66\n📞 +998 99 939 55 56\n📸 @baraka_consulting_uz\n🕐 Du-Sha, 9:00–18:00",
+    "uz_cyrillic":"📍 Манзил: Тошкент, Учтепа тумани\n📞 +998 95 087 77 66\n📞 +998 99 939 55 56\n📸 @baraka_consulting_uz\n🕐 Ду-Ша, 9:00–18:00",
+    "ru":         "📍 Адрес: Ташкент, Учтепинский район\n📞 +998 95 087 77 66\n📞 +998 99 939 55 56\n📸 @baraka_consulting_uz\n🕐 Пн-Сб, 9:00–18:00",
 }
 
 RATE_QUESTION = {
@@ -51,8 +51,23 @@ RATE_KEYBOARD = {
 LOCATION_KEYWORDS = [
     "локаци", "адрес", "где вы", "где находит", "офис",
     "manzil", "lokatsiya", "qayerda", "joylashuv", "ofis",
-    "манзил", "қаерда",
+    "манзил", "қаерда", "location", "карта",
 ]
+
+SOCIAL_KEYWORDS = [
+    "instagram", "инстаграм", "insta", "соцсет", "ijtimoiy",
+    "социальн", "контакт", "связат",
+]
+
+SOCIAL_TEXT = {
+    "uz_latin":   "📸 Instagram: @baraka_consulting_uz\nhttps://www.instagram.com/baraka_consulting_uz\n\n📞 +998 95 087 77 66\n📞 +998 99 939 55 56",
+    "uz_cyrillic":"📸 Instagram: @baraka_consulting_uz\nhttps://www.instagram.com/baraka_consulting_uz\n\n📞 +998 95 087 77 66\n📞 +998 99 939 55 56",
+    "ru":         "📸 Instagram: @baraka_consulting_uz\nhttps://www.instagram.com/baraka_consulting_uz\n\n📞 +998 95 087 77 66\n📞 +998 99 939 55 56",
+}
+
+def is_social_request(text: str) -> bool:
+    low = text.lower()
+    return any(k in low for k in SOCIAL_KEYWORDS)
 
 def is_location_request(text: str) -> bool:
     low = text.lower()
@@ -185,6 +200,11 @@ def webhook():
     if is_location_request(text):
         telegram_client.send_message(chat_id, OFFICE_ADDR.get(current_lang, OFFICE_ADDR["ru"]))
         telegram_client.send_location(chat_id, OFFICE_LAT, OFFICE_LON)
+        return jsonify(ok=True)
+
+    # Запрос соцсетей / Instagram
+    if is_social_request(text):
+        telegram_client.send_message(chat_id, SOCIAL_TEXT.get(current_lang, SOCIAL_TEXT["ru"]))
         return jsonify(ok=True)
 
     # Тип кредита — запоминаем на весь диалог

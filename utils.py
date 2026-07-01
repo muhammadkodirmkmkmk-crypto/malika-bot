@@ -140,25 +140,44 @@ def guess_rate(text: str) -> float | None:
 
 
 def parse_amount(text: str) -> float | None:
-    """Парсер суммы (в сумах) из текста."""
-    low = text.lower().replace(" ", "")
-    amount_match = re.search(r"(\d{2,}(?:[.,]\d+)?)\s*(млн|million|mln)", text.lower())
+    """Парсер суммы (в сумах) из текста. Поддерживает млн/mln и доллары."""
+    low = text.lower()
+
+    # Миллионы сумов: 500 млн, 50mln, 300 million
+    amount_match = re.search(r"(\d{2,}(?:[.,]\d+)?)\s*(млн|million|mln)", low)
     if amount_match:
         num = float(amount_match.group(1).replace(",", "."))
         return num * 1_000_000
-    plain = re.search(r"\b(\d{7,})\b", low)
+
+    # Доллары: 20000$, $20000, 20000 dollar, 20000 usd, 20 000$
+    dollar_match = re.search(
+        r"\$\s*([\d\s.,]+)|([\d\s.,]+)\s*(?:\$|dollar|usd|дол)",
+        low
+    )
+    if dollar_match:
+        raw = (dollar_match.group(1) or dollar_match.group(2) or "").replace(" ", "").replace(",", "")
+        try:
+            usd_val = float(raw)
+            if usd_val >= 100:
+                from config import USD_RATE
+                return usd_val * USD_RATE
+        except (ValueError, ImportError):
+            pass
+
+    # Голое большое число (от 7 цифр = минимум 1 млн сум)
+    plain = re.search(r"\b(\d{7,})\b", low.replace(" ", ""))
     if plain:
         return float(plain.group(1))
     return None
 
 
 def parse_months(text: str) -> int | None:
-    """Парсер срока (в месяцах) из текста — требует явную единицу измерения
-    (месяц/мес/oy/ой или год/лет/yil/йил), без неё не угадывает."""
+    """Парсер срока (в месяцах) из текста."""
     low = text.lower()
     months_match = re.search(r"(\d{1,3})\s*(месяц|мес|oy|ой)", low)
     if months_match:
         return int(months_match.group(1))
+    # yilga, yilda, yildan — узбекский с падежными суффиксами
     years_match = re.search(r"(\d{1,2})\s*(год|лет|yil|йил)", low)
     if years_match:
         return int(years_match.group(1)) * 12
