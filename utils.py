@@ -274,7 +274,8 @@ def build_payment_message(amount: float, months: int, payment: float, lang: str,
             return f"Кечирасиз, максимал кредит суммаси {limit} сўм ({usd_limit})."
         return f"Извините, максимальная сумма кредита — {limit} сум ({usd_limit})."
 
-    _, avg, _ = differential_payments(amount, rate, months)
+    first, avg, _ = differential_payments(amount, rate, months)
+    display  = first  # первый платёж — совпадает с сайтом-калькулятором
     rate_pct = round(rate * 100)
     years    = months // 12
 
@@ -306,7 +307,7 @@ def build_payment_message(amount: float, months: int, payment: float, lang: str,
     else:
         # Клиент писал в сумах — показываем только в сумах
         a_str   = format_sum(amount)
-        avg_str = format_sum(avg)
+        avg_str = format_sum(display)
         if lang == "uz_latin":
             return (
                 f"✅ {a_str} so'm summaga {years} yil, {rate_pct}% stavkada —\n"
