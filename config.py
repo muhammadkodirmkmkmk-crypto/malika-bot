@@ -22,7 +22,7 @@ TELEGRAM_API_URL = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}"
 USD_RATE = float(os.environ.get("USD_RATE", "12800"))
 
 # Максимальная сумма кредита (сум)
-MAX_CREDIT_AMOUNT = float(os.environ.get("MAX_CREDIT_AMOUNT", "1000000000"))
+MAX_CREDIT_AMOUNT = float(os.environ.get("MAX_CREDIT_AMOUNT", "10000000000"))
 
 # Google Sheets для бота Odilbek
 GOOGLE_SHEETS_ID = os.environ.get("GOOGLE_SHEETS_ID", "")

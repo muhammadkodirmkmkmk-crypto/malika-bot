@@ -97,6 +97,11 @@ def set_credit_rate_if_absent(chat_id: int, rate: float) -> None:
         _credit_rate[chat_id] = rate
 
 
+def set_credit_rate(chat_id: int, rate: float) -> None:
+    """Принудительно обновляет ставку — используется когда клиент явно выбрал её кнопкой."""
+    _credit_rate[chat_id] = rate
+
+
 def get_credit_rate(chat_id: int) -> float | None:
     return _credit_rate.get(chat_id)
 

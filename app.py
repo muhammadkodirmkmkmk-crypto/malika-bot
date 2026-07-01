@@ -201,6 +201,8 @@ def handle_callback(data: dict) -> None:
             return
         amount, months = pending
         storage.clear_pending_calculation(chat_id)
+        # Принудительно фиксируем именно ту ставку которую выбрал клиент кнопкой
+        storage.set_credit_rate(chat_id, rate)
         current_lang = storage.get_language_lock(chat_id) or "ru"
         payment = annuity_payment(amount, rate, months)
         reply = build_payment_message(amount, months, payment, current_lang, rate=rate)
