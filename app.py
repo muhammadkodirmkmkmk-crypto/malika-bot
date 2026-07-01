@@ -2,7 +2,7 @@ import logging
 
 from flask import Flask, request, jsonify
 
-from config import OWNER_CHAT_ID
+from config import OWNER_CHAT_ID, OWNER_CHAT_ID_2
 import storage
 import telegram_client
 from claude_client import ask_malika
@@ -49,6 +49,7 @@ def send_lead_to_owner(chat_id: int, user, contact_text: str) -> None:
         f"🆔 Chat ID: {chat_id}"
     )
     telegram_client.send_message(OWNER_CHAT_ID, msg)
+    telegram_client.send_message(OWNER_CHAT_ID_2, msg)
     storage.mark_new_client_reported(chat_id)
 
 

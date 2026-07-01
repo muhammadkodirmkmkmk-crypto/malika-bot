@@ -8,6 +8,7 @@ ADMIN_CHAT_ID = int(os.environ.get("ADMIN_CHAT_ID", "0"))
 
 # Кому пересылать оформленных "новых клиентов" (имя/город после расчёта платежа)
 OWNER_CHAT_ID = int(os.environ.get("OWNER_CHAT_ID", "7871931220"))
+OWNER_CHAT_ID_2 = int(os.environ.get("OWNER_CHAT_ID_2", "5048623724"))
 
 # Модель Claude для генерации ответов Малики
 CLAUDE_MODEL = os.environ.get("CLAUDE_MODEL", "claude-haiku-4-5-20251001")
