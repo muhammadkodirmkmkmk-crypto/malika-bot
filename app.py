@@ -6,6 +6,7 @@ from config import OWNER_CHAT_ID, OWNER_CHAT_ID_2
 import storage
 import telegram_client
 from claude_client import ask_malika
+from sheets_client import append_lead, ensure_headers
 from utils import (
     guess_rate,
     parse_explicit_rate,
@@ -25,6 +26,12 @@ logging.basicConfig(level=logging.INFO)
 log = logging.getLogger("malika-bot")
 
 app = Flask(__name__)
+
+# Записываем заголовки таблицы при старте если её ещё нет
+try:
+    ensure_headers()
+except Exception as _e:
+    log.warning("ensure_headers at startup: %s", _e)
 
 # ─── Офис Baraka Consulting ───────────────────────────────────────────────────
 OFFICE_LAT  = 41.285384
@@ -112,6 +119,20 @@ GREETINGS = {
 
 # ─── Уведомления владельцам ───────────────────────────────────────────────────
 
+def parse_contact_text(text: str) -> tuple[str, str, str]:
+    """Грубо разбирает текст клиента на (имя, телефон, город).
+    Телефон ищем регуляркой, имя — первые слова без цифр, город — остальное."""
+    import re
+    phone_re = re.compile(r"(\+?998[\s\-]?\d{2}[\s\-]?\d{3}[\s\-]?\d{2}[\s\-]?\d{2}|\b\d{9}\b)")
+    phone_match = phone_re.search(text)
+    phone = phone_match.group(0) if phone_match else ""
+    without_phone = phone_re.sub("", text).strip()
+    parts = [p.strip(" ,;") for p in without_phone.replace("\n", ",").split(",") if p.strip()]
+    name = parts[0] if parts else ""
+    city = parts[1] if len(parts) > 1 else ""
+    return name, phone, city
+
+
 def send_lead_to_owner(chat_id: int, user, contact_text: str) -> None:
     if not OWNER_CHAT_ID or storage.was_new_client_reported(chat_id):
         return
@@ -127,6 +148,32 @@ def send_lead_to_owner(chat_id: int, user, contact_text: str) -> None:
     )
     telegram_client.send_message(OWNER_CHAT_ID, msg)
     telegram_client.send_message(OWNER_CHAT_ID_2, msg)
+    storage.mark_new_client_reported(chat_id)
+
+    # Записываем в Google Sheets
+    from datetime import datetime
+    import pytz
+    TZ = pytz.timezone("Asia/Tashkent")
+    date_str = datetime.now(TZ).strftime("%d.%m.%Y %H:%M")
+    name, phone, city = parse_contact_text(contact_text)
+    amount_months = storage.get_last_amount_months(chat_id)
+    amount = amount_months[0] if amount_months else None
+    months = amount_months[1] if amount_months else None
+    rate = storage.get_credit_rate(chat_id)
+    lang = storage.get_language_lock(chat_id) or "ru"
+    # Считаем ежемесячный платёж в долларах для записи
+    monthly_usd = None
+    if amount and months and rate:
+        from utils import differential_payments
+        from config import USD_RATE
+        _, avg, _ = differential_payments(amount, rate, months)
+        monthly_usd = avg / USD_RATE
+    append_lead(
+        name=name, phone=phone, city=city,
+        amount_uzs=amount, months=months, rate=rate,
+        monthly_usd=monthly_usd, lang=lang,
+        username=username, date_str=date_str,
+    )
     storage.mark_new_client_reported(chat_id)
 
 
