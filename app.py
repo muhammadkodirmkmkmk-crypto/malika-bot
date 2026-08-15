@@ -26,9 +26,9 @@ except Exception as _e:
 OFFICE_LAT  = 41.285384
 OFFICE_LON  = 69.169782
 OFFICE_ADDR = {
-    "uz_latin":   "📍 Toshkent, Uchtepa tumani\n📞 +998 95 087 77 66\n📞 +998 99 939 55 56\n📞 +998 88 478 33 33\n📸 @baraka_consulting_uz\n🕐 Du-Sha, 9:00–18:00",
-    "uz_cyrillic":"📍 Тошкент, Учтепа тумани\n📞 +998 95 087 77 66\n📞 +998 99 939 55 56\n📞 +998 88 478 33 33\n📸 @baraka_consulting_uz\n🕐 Ду-Ша, 9:00–18:00",
-    "ru":         "📍 Ташкент, Учтепинский район\n📞 +998 95 087 77 66\n📞 +998 99 939 55 56\n📞 +998 88 478 33 33\n📸 @baraka_consulting_uz\n🕐 Пн-Сб, 9:00–18:00",
+    "uz_latin":   "📍 Toshkent, Uchtepa tumani\n📞 +998 99 939 55 56\n📞 +998 88 478 33 33\n📸 @baraka_consulting_uz\n🕐 Du-Sha, 9:00–18:00",
+    "uz_cyrillic":"📍 Тошкент, Учтепа тумани\n📞 +998 99 939 55 56\n📞 +998 88 478 33 33\n📸 @baraka_consulting_uz\n🕐 Ду-Ша, 9:00–18:00",
+    "ru":         "📍 Ташкент, Учтепинский район\n📞 +998 99 939 55 56\n📞 +998 88 478 33 33\n📸 @baraka_consulting_uz\n🕐 Пн-Сб, 9:00–18:00",
 }
 
 # ─── Выбор языка ──────────────────────────────────────────────────────────────
@@ -74,7 +74,7 @@ EXTRA_SERVICES = {
         "🔵 Yuridik maslahat — barcha huquqiy masalalar bo'yicha\n"
         "🔵 Firma ochish / yopish — ariza topshirish va rasmiylashtirish\n"
         "🔵 Buxgalteriya xizmati — hisobotlar, soliqlar va maslahat\n\n"
-        "📞 Bog'lanish:\n+998 95 087 77 66\n+998 99 939 55 56\n+998 88 478 33 33\n"
+        "📞 Bog'lanish:\n+998 99 939 55 56\n+998 88 478 33 33\n"
         "📸 @baraka_consulting_uz\n🕐 Du-Sha, 9:00–18:00"
     ),
     "uz_cyrillic": (
@@ -85,7 +85,7 @@ EXTRA_SERVICES = {
         "🔵 Юридик маслаҳат — барча ҳуқуқий масалалар бўйича\n"
         "🔵 Firma ochish / yopish — ариза ва расмийлаштириш\n"
         "🔵 Бухгалтерия хизмати — ҳисоботлар, солиқлар ва маслаҳат\n\n"
-        "📞 Боғланиш:\n+998 95 087 77 66\n+998 99 939 55 56\n+998 88 478 33 33\n"
+        "📞 Боғланиш:\n+998 99 939 55 56\n+998 88 478 33 33\n"
         "📸 @baraka_consulting_uz\n🕐 Ду-Ша, 9:00–18:00"
     ),
     "ru": (
@@ -96,7 +96,7 @@ EXTRA_SERVICES = {
         "🔵 Юридическая консультация — по всем правовым вопросам\n"
         "🔵 Открытие / закрытие фирмы — заявка и оформление\n"
         "🔵 Бухгалтерские услуги — учёт, налоги, отчёты и консультации\n\n"
-        "📞 Связаться с нами:\n+998 95 087 77 66\n+998 99 939 55 56\n+998 88 478 33 33\n"
+        "📞 Связаться с нами:\n+998 99 939 55 56\n+998 88 478 33 33\n"
         "📸 @baraka_consulting_uz\n🕐 Пн-Сб, 9:00–18:00"
     ),
 }
@@ -139,9 +139,9 @@ SOCIAL_KEYWORDS = [
     "instagram","инстаграм","insta","соцсет","ijtimoiy","социальн","контакт","связат",
 ]
 SOCIAL_TEXT = {
-    "uz_latin":   "📸 Instagram: @baraka_consulting_uz\nhttps://www.instagram.com/baraka_consulting_uz\n\n📞 +998 95 087 77 66\n📞 +998 99 939 55 56",
-    "uz_cyrillic":"📸 Instagram: @baraka_consulting_uz\nhttps://www.instagram.com/baraka_consulting_uz\n\n📞 +998 95 087 77 66\n📞 +998 99 939 55 56",
-    "ru":         "📸 Instagram: @baraka_consulting_uz\nhttps://www.instagram.com/baraka_consulting_uz\n\n📞 +998 95 087 77 66\n📞 +998 99 939 55 56",
+    "uz_latin":   "📸 Instagram: @baraka_consulting_uz\nhttps://www.instagram.com/baraka_consulting_uz\n\n📞 +998 99 939 55 56",
+    "uz_cyrillic":"📸 Instagram: @baraka_consulting_uz\nhttps://www.instagram.com/baraka_consulting_uz\n\n📞 +998 99 939 55 56",
+    "ru":         "📸 Instagram: @baraka_consulting_uz\nhttps://www.instagram.com/baraka_consulting_uz\n\n📞 +998 99 939 55 56",
 }
 
 def is_location_request(text: str) -> bool:
@@ -358,7 +358,7 @@ def webhook():
         reply = strip_markdown_asterisks(reply)
     except Exception:
         log.exception("Claude API error")
-        reply = "Извините, небольшая техническая заминка 🙏 Позвоните нам: +998 95 087 77 66"
+        reply = "Извините, небольшая техническая заминка 🙏 Позвоните нам: +998 99 939 55 56"
 
     storage.append_message(chat_id, "assistant", reply)
     telegram_client.send_message(chat_id, reply)
