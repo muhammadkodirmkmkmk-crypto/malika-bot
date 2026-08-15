@@ -1,4 +1,4 @@
-"""Google Sheets интеграция для бота Odilbek (Baraka Consulting).
+"""Google Sheets интеграция для бота Rovshanbek (Baraka Consulting).
 
 Колонки таблицы:
 A — Дата
