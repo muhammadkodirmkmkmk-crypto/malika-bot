@@ -60,9 +60,9 @@ SERVICES_KEYBOARD_RU = {
 }
 
 CREDIT_INTRO = {
-    "uz_latin":   "Assalomu alaykum! 👋 Men Odilbek — Baraka Consulting maslahatchisiman.\nKredit tanlashda yordam beraman: ipoteka, avtokredit yoki naqd pul.\nQaysi biri sizni qiziqtiradi?",
-    "uz_cyrillic":"Ассалому алайкум! 👋 Мен Одилбек — Baraka Consulting маслаҳатчисиман.\nКредит танлашда ёрдам бераман: ипотека, автокредит ёки нақд пул.\nҚайси бири сизни қизиқтиради?",
-    "ru":         "Здравствуйте! 👋 Я Одилбек, консультант Baraka Consulting.\nПомогу подобрать кредит — ипотека, авто или наличные.\nЧто вас интересует?",
+    "uz_latin":   "Assalomu alaykum! 👋 Men Rovshanbek — Baraka Consulting maslahatchisiman.\nKredit tanlashda yordam beraman: ipoteka, avtokredit yoki naqd pul.\nQaysi biri sizni qiziqtiradi?",
+    "uz_cyrillic":"Ассалому алайкум! 👋 Мен Ровшанбек — Baraka Consulting маслаҳатчисиман.\nКредит танлашда ёрдам бераман: ипотека, автокредит ёки нақд пул.\nҚайси бири сизни қизиқтиради?",
+    "ru":         "Здравствуйте! 👋 Я Ровшанбек, консультант Baraka Consulting.\nПомогу подобрать кредит — ипотека, авто или наличные.\nЧто вас интересует?",
 }
 
 EXTRA_SERVICES = {
@@ -171,7 +171,7 @@ def send_lead_to_owner(chat_id: int, user, contact_text: str) -> None:
     amount_months = storage.get_last_amount_months(chat_id)
     credit_line = f"{format_sum(amount_months[0])} so'm, {amount_months[1]} oy" if amount_months else "—"
     msg = (
-        "🆕 Yangi mijoz — Odilbek boti\n\n"
+        "🆕 Yangi mijoz — Rovshanbek boti\n\n"
         f"👤 Mijoz yuborgan ma'lumot:\n{contact_text}\n\n"
         f"💰 So'rov: {credit_line}\n"
         f"🔗 Telegram: {username}\n"
@@ -351,7 +351,7 @@ def webhook():
     telegram_client.send_typing(chat_id)
     dynamic_addendum = (
         f"Язык этого диалога ЗАФИКСИРОВАН: {LANGUAGE_LOCK_LABELS[current_lang]}. "
-        f"Отвечай ТОЛЬКО на этом языке. Твоё имя — Odilbek, не Malika."
+        f"Отвечай ТОЛЬКО на этом языке. Твоё имя — Rovshanbek, не Malika."
     )
     try:
         reply = ask_malika(storage.get_history(chat_id), dynamic_addendum=dynamic_addendum)
@@ -366,7 +366,7 @@ def webhook():
 
 @app.route("/", methods=["GET"])
 def health():
-    return jsonify(status="ok", bot="odilbek")
+    return jsonify(status="ok", bot="rovshanbek")
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8080)
